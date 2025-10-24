@@ -100,6 +100,9 @@
             z-index: 1000;
             display: none;
         }
+
+
+
         .filter-dropdown.show { display: block; }
     </style>
 
@@ -115,15 +118,11 @@
 
             <!-- Toolbar -->
             <div class="d-flex align-items-center gap-2 mb-3">
-                <button id="btn-new-tatarak" class="btn btn-m365 d-flex align-items-center gap-2">
+                <button id="btn-bulk-tatarak" class="btn btn-m365 d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalBulkTatarak">
                     <i class="bi bi-plus-lg"></i>
-                    <span>New Penataan</span>
+                    <span>Tata Buku</span>
                 </button>
             <div class="vr"></div>
-                <button id="btn-bulk-tatarak" class="btn btn-m365 d-flex align-items-center gap-2"> <!-- Ini button baru -->
-                    <i class="bi bi-box-seam"></i>
-                    <span>Bulk Penataan</span>
-                </button>
             <button id="btn-edit-tatarak" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
                 <i class="bi bi-pencil"></i>
                 <span>Edit</span>
@@ -202,6 +201,7 @@
         @include('admin.tataraks.partials.new-modal')
         @include('admin.tataraks.partials.edit-modal')
         @include('admin.tataraks.partials.bulk-modal')
+        @include('admin.tataraks.partials.select-buku-modal')
     </div>
 
     @push('scripts')
@@ -209,7 +209,6 @@
             (() => {
                 const $tableBody = document.getElementById('tataraks-rows');
                 const $pagination = document.getElementById('pagination');
-                const $btnNew = document.getElementById('btn-new-tatarak');
                 const $btnBulk = document.getElementById('btn-bulk-tatarak');
                 const $btnEdit = document.getElementById('btn-edit-tatarak');
                 const $btnDelete = document.getElementById('btn-delete-tatarak');
@@ -222,7 +221,6 @@
                 const csrf = '{{ csrf_token() }}';
                 const copyNotification = document.getElementById('copy-notification');
                 let currentFilters = {};
-                let eksemplarTable = null; // For bulk datatable
 
                 const showCopyNotification = () => {
                     copyNotification.classList.add('show');
@@ -264,12 +262,6 @@
                 window.fetchTataraks = fetchTataraks;
                 window.currentFilters = currentFilters;
 
-                $btnNew.addEventListener('click', () => new bootstrap.Modal(document.getElementById('modalNewTatarak')).show());
-
-                $btnBulk.addEventListener('click', () => {
-                    new bootstrap.Modal(document.getElementById('modalBulkTatarak')).show();
-                });
-
                 $btnRefresh.addEventListener('click', () => fetchTataraks(currentFilters));
 
                 $searchInput.addEventListener('input', (e) => {
@@ -289,50 +281,6 @@
                 $selectAll.addEventListener('change', (e) => {
                     document.querySelectorAll('.select-tatarak').forEach(cb => cb.checked = e.target.checked);
                     toggleButtons();
-                });
-
-                document.getElementById('form-new-tatarak').addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    const formData = new FormData(this);
-                    const data = Object.fromEntries(formData);
-                    try {
-                        const res = await fetch('{{ route('admin.tataraks.store') }}', {
-                            method: 'POST',
-                            headers: {
-                                'X-CSRF-TOKEN': csrf,
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify(data)
-                        });
-                        const response = await res.json();
-                        if (!res.ok) {
-                            const errors = response.errors ? Object.values(response.errors).flat().join('\n') : response.error || response.message;
-                            throw new Error(errors);
-                        }
-                        bootstrap.Modal.getInstance(document.getElementById('modalNewTatarak')).hide();
-                        fetchTataraks(currentFilters);
-                        alert(response.message || 'Penataan berhasil dibuat');
-                    } catch (err) {
-                        alert(err.message || 'Error membuat penataan');
-                    }
-                });
-
-                $btnEdit.addEventListener('click', async () => {
-                    const ids = getSelectedIds();
-                    if (ids.length !== 1) return alert('Pilih satu penataan untuk edit');
-                    try {
-                        const res = await fetch(`{{ url('admin/tataraks') }}/${ids[0]}`);
-                        const tatarak = await res.json();
-                        document.getElementById('edit-id').value = tatarak.id;
-                        document.getElementById('edit-id_buku_item').value = tatarak.id_buku_item;
-                        document.getElementById('edit-id_rak').value = tatarak.id_rak;
-                        document.getElementById('edit-kolom').value = tatarak.kolom;
-                        document.getElementById('edit-baris').value = tatarak.baris;
-                        new bootstrap.Modal(document.getElementById('modalEditTatarak')).show();
-                    } catch (err) {
-                        alert('Error mengambil data penataan');
-                    }
                 });
 
                 document.getElementById('form-edit-tatarak').addEventListener('submit', async function(e) {
@@ -394,147 +342,366 @@
 
             })();
 
-            // ===== BULK TATARAK SCRIPT (jQuery based) =====
+            // ===== BULK TATARAK SCRIPT (Fixed Routes Version) =====
             $(document).ready(function() {
-                let eksemplarTable = null;
+                // Global storage untuk menyimpan pilihan buku & eksemplar
+                let selectedBooksData = {}; // Format: { id_buku: { judul: '', eksemplar: [id1, id2, ...] } }
+                let currentBukuId = null;
+                let bukuTable = null;
 
-                // Init Select2
-                $('#select-buku').select2({
-                    placeholder: "-- Cari Judul --",
-                    dropdownParent: $('#modalBulkTatarak')
-                });
+                // Base URL untuk API calls
+                const BASE_URL = '{{ url('admin/tataraks') }}';
 
-                // Saat pilih judul
-                $('#select-buku').on('change', async function() {
-                    const idBuku = $(this).val();
-                    console.log('Buku ID dipilih:', idBuku);
+                // Helper function: Update tampilan daftar buku terpilih di bulk modal
+                function updateSelectedBooksDisplay() {
+                    const container = $('#selected-books-container');
+                    const list = $('#selected-books-list');
 
-                    if (!idBuku) {
-                        $('#eksemplar-section').hide();
+                    const bukuIds = Object.keys(selectedBooksData);
+                    if (bukuIds.length === 0) {
+                        container.hide();
                         return;
                     }
 
-                    try {
-                        const url = `{{ url('admin/tataraks/preview') }}/${idBuku}`;
-                        console.log('Fetching:', url);
+                    container.show();
+                    let html = '';
+                    let totalEksemplar = 0;
 
-                        const res = await fetch(url);
-                        console.log('Response status:', res.status);
+                    bukuIds.forEach(bukuId => {
+                        const data = selectedBooksData[bukuId];
+                        totalEksemplar += data.eksemplar.length;
 
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        html += `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">${data.judul}</h6>
+                                <small class="text-muted">${data.eksemplar.length} eksemplar dipilih</small>
+                                <div class="mt-2">
+                                    ${data.eksemplarDetails.map(e => `
+                                        <span class="badge bg-secondary me-1">${e.barcode}</span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-danger btn-remove-buku" data-buku-id="${bukuId}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+                    });
 
-                        const items = await res.json();
-                        console.log('Data eksemplar:', items);
-                        console.log('Jumlah items:', items.length);
+                    list.html(html);
+                    $('#total-eksemplar-count').text(totalEksemplar);
+                }
 
-                        // Destroy table lama
-                        if (eksemplarTable !== null) {
-                            eksemplarTable.destroy();
-                            eksemplarTable = null;
-                        }
+                // Remove buku dari pilihan
+                $(document).on('click', '.btn-remove-buku', function() {
+                    const bukuId = $(this).data('buku-id');
+                    delete selectedBooksData[bukuId];
+                    updateSelectedBooksDisplay();
+                });
 
-                        $('#eksemplar-table tbody').empty();
-                        $('#eksemplar-section').show();
+                // Init DataTable untuk daftar buku
+                $('#modalSelectBuku').on('shown.bs.modal', function () {
+                    // Show section judul, hide section eksemplar
+                    $('#section-pilih-judul').show();
+                    $('#section-pilih-eksemplar').hide();
 
-                        // Init DataTables
-                        eksemplarTable = $('#eksemplar-table').DataTable({
-                            data: items,
+                    if (!bukuTable) {
+                        bukuTable = $('#buku-table').DataTable({
+                            ajax: '{{ route('admin.tataraks.searchBukuDatatable') }}',
+                            serverSide: true,
+                            processing: true,
                             columns: [
+                                { data: 'id' },
+                                { data: 'judul' },
+                                { data: 'pengarang' },
+                                { data: 'tahun_terbit' },
+                                { data: 'eksemplar_tersedia' },
                                 {
                                     data: null,
                                     orderable: false,
-                                    render: function(data, type, row) {
-                                        return `<input type="checkbox" class="select-eksemplar form-check-input" data-id="${row.id}">`;
+                                    render: function (data) {
+                                        return `<button class="btn btn-primary btn-sm btn-pilih-buku" data-id="${data.id}" data-judul="${data.judul}">Pilih</button>`;
                                     }
-                                },
-                                { data: 'barcode' },
-                                { data: 'kondisi' },
-                                { data: 'status' }
+                                }
                             ],
-                            destroy: true,
-                            searching: true,
+                            searching: false,
                             paging: true,
                             pageLength: 10,
-                            language: {
-                                emptyTable: "Tidak ada eksemplar tersedia",
-                                zeroRecords: "Tidak ditemukan",
-                                search: "Cari:",
-                                lengthMenu: "Show _MENU_",
-                                info: "Showing _START_ to _END_ of _TOTAL_",
-                                paginate: {
-                                    first: "First",
-                                    last: "Last",
-                                    next: "Next",
-                                    previous: "Previous"
-                                }
-                            }
                         });
-
-                        console.log('DataTable initialized successfully');
-
-                    } catch (err) {
-                        console.error('Error:', err);
-                        alert('Error loading eksemplar: ' + err.message);
-                        $('#eksemplar-section').hide();
                     }
                 });
 
-                // Select all
-                $(document).on('change', '#select-all-eksemplar', function() {
-                    $('#eksemplar-table .select-eksemplar').prop('checked', this.checked);
+                // Search manual
+                $('#search-buku-modal').on('input', debounce(function () {
+                    if (bukuTable) {
+                        bukuTable.search(this.value).draw();
+                    }
+                }, 300));
+
+                // Filter tahun
+                $('#btn-apply-filter-buku').on('click', function () {
+                    const tahun = $('#filter-tahun').val();
+                    if (bukuTable) {
+                        bukuTable.column(3).search(tahun ? '^' + tahun + '$' : '', true, false).draw();
+                    }
+                    $('#filter-dropdown-buku').removeClass('show');
                 });
 
-                // Apply range
+                $('#btn-filter-buku').on('click', function () {
+                    $('#filter-dropdown-buku').toggleClass('show');
+                });
+
+                // Handle pilih buku (load eksemplar)
+                $(document).on('click', '.btn-pilih-buku', async function () {
+                    const bukuId = $(this).data('id');
+                    const judul = $(this).data('judul');
+
+                    currentBukuId = bukuId;
+                    $('#selected-judul-text').text(judul);
+
+                    // Hide section judul, show section eksemplar
+                    $('#section-pilih-judul').hide();
+                    $('#section-pilih-eksemplar').show();
+
+                    // Load eksemplar yang tersedia
+                    try {
+                        const url = `${BASE_URL}/available-eksemplar/${bukuId}`;
+                        const res = await fetch(url);
+
+                        if (!res.ok) {
+                            throw new Error('Failed to load eksemplar');
+                        }
+
+                        const eksemplarList = await res.json();
+
+                        const tbody = $('#eksemplar-table-body');
+                        tbody.empty();
+
+                        if (eksemplarList.length === 0) {
+                            tbody.html('<tr><td colspan="5" class="text-center text-muted">Tidak ada eksemplar tersedia</td></tr>');
+                            return;
+                        }
+
+                        eksemplarList.forEach(eks => {
+                            tbody.append(`
+                    <tr>
+                        <td><input type="checkbox" class="form-check-input select-eksemplar" value="${eks.id}" data-barcode="${eks.barcode}" data-kondisi="${eks.kondisi}" data-status="${eks.status}" data-sumber="${eks.sumber}"></td>
+                        <td>${eks.barcode}</td>
+                        <td>${eks.kondisi}</td>
+                        <td>${eks.status}</td>
+                        <td>${eks.sumber}</td>
+                    </tr>
+                `);
+                        });
+
+                        updateSelectedEksemplarCount();
+                    } catch (err) {
+                        console.error('Error:', err);
+                        alert('Error loading eksemplar: ' + err.message);
+                    }
+                });
+
+                // Back to judul list
+                $('#btn-back-to-judul').on('click', function() {
+                    $('#section-pilih-eksemplar').hide();
+                    $('#section-pilih-judul').show();
+                    currentBukuId = null;
+                });
+
+                // Select all eksemplar
+                $('#select-all-eksemplar').on('change', function() {
+                    $('.select-eksemplar').prop('checked', this.checked);
+                    updateSelectedEksemplarCount();
+                });
+
+                // Update count saat checkbox berubah
+                $(document).on('change', '.select-eksemplar', function() {
+                    updateSelectedEksemplarCount();
+                });
+
+                function updateSelectedEksemplarCount() {
+                    const count = $('.select-eksemplar:checked').length;
+                    $('#selected-eksemplar-count').text(count);
+                }
+
+                // Apply range barcode
                 $('#btn-apply-range').on('click', function() {
-                    const rangeValue = $('#range-barcode').val().trim();
-                    if (!rangeValue) return alert('Masukkan range');
+                    const rangeInput = $('#range-barcode').val().trim();
+                    if (!rangeInput) return alert('Masukkan range barcode!');
 
-                    const parts = rangeValue.split('-');
-                    if (parts.length !== 2) return alert('Format: 2001-2017');
+                    const parts = rangeInput.split('-');
+                    if (parts.length !== 2) return alert('Format salah! Gunakan: BARCODE_AWAL-BARCODE_AKHIR');
 
-                    const start = parseInt(parts[0]);
-                    const end = parseInt(parts[1]);
+                    const start = parts[0].trim();
+                    const end = parts[1].trim();
 
-                    if (isNaN(start) || isNaN(end)) return alert('Harus angka!');
-                    if (start > end) return alert('Start harus < end');
+                    // Uncheck all first
+                    $('.select-eksemplar').prop('checked', false);
 
-                    let count = 0;
-                    eksemplarTable.rows().every(function() {
-                        const barcode = parseInt(this.data().barcode);
+                    // Check yang masuk range
+                    let found = false;
+                    $('.select-eksemplar').each(function() {
+                        const barcode = $(this).data('barcode');
                         if (barcode >= start && barcode <= end) {
-                            $(this.node()).find('.select-eksemplar').prop('checked', true);
-                            count++;
+                            $(this).prop('checked', true);
+                            found = true;
                         }
                     });
-                    alert(`${count} eksemplar dipilih`);
+
+                    if (!found) alert('Tidak ada barcode dalam range tersebut');
+                    updateSelectedEksemplarCount();
                 });
 
-                // Submit bulk
+                // Konfirmasi pilihan eksemplar
+                $('#btn-confirm-eksemplar').on('click', async function() {
+                    const selectedEks = [];
+                    const selectedEksDetails = [];
+
+                    $('.select-eksemplar:checked').each(function() {
+                        selectedEks.push(parseInt($(this).val()));
+                        selectedEksDetails.push({
+                            id: parseInt($(this).val()),
+                            barcode: $(this).data('barcode'),
+                            kondisi: $(this).data('kondisi'),
+                            status: $(this).data('status'),
+                            sumber: $(this).data('sumber')
+                        });
+                    });
+
+                    if (selectedEks.length === 0) {
+                        return alert('Pilih minimal 1 eksemplar!');
+                    }
+
+                    // Ambil kategori buku untuk filter rak
+                    let kategoriId = null;
+                    try {
+                        const url = `${BASE_URL}/buku-kategori/${currentBukuId}`;
+                        const res = await fetch(url);
+
+                        if (res.ok) {
+                            const data = await res.json();
+                            kategoriId = data.id_kategori;
+                        }
+                    } catch(err) {
+                        console.error('Error getting kategori:', err);
+                    }
+
+                    // Simpan ke storage
+                    const judul = $('#selected-judul-text').text();
+                    selectedBooksData[currentBukuId] = {
+                        judul: judul,
+                        eksemplar: selectedEks,
+                        eksemplarDetails: selectedEksDetails,
+                        kategoriId: kategoriId
+                    };
+
+                    // Update tampilan di bulk modal
+                    updateSelectedBooksDisplay();
+
+                    // Update dropdown rak berdasarkan kategori
+                    await updateRakDropdown();
+
+                    // Close select modal, back to bulk modal
+                    $('#modalSelectBuku').modal('hide');
+                    $('#modalBulkTatarak').modal('show');
+
+                    // Reset section
+                    $('#section-pilih-eksemplar').hide();
+                    $('#section-pilih-judul').show();
+                    currentBukuId = null;
+                });
+
+                // Function untuk update dropdown rak berdasarkan kategori buku yang dipilih
+                async function updateRakDropdown() {
+                    // Ambil semua kategori dari buku yang dipilih
+                    const kategoriIds = new Set();
+                    Object.values(selectedBooksData).forEach(data => {
+                        if (data.kategoriId) {
+                            kategoriIds.add(data.kategoriId);
+                        }
+                    });
+
+                    // Jika tidak ada buku terpilih, kosongkan dropdown
+                    if (kategoriIds.size === 0) {
+                        const select = $('#select-rak');
+                        select.empty();
+                        select.append('<option value="">-- Pilih Buku Terlebih Dahulu --</option>');
+                        return;
+                    }
+
+                    // Jika ada multiple kategori, cek apakah sama semua
+                    if (kategoriIds.size > 1) {
+                        alert('Peringatan: Buku yang dipilih memiliki kategori berbeda. Pilih rak yang sesuai dengan hati-hati.');
+                    }
+
+                    // Ambil rak berdasarkan kategori
+                    const kategoriArray = Array.from(kategoriIds);
+                    try {
+                        const url = `${BASE_URL}/rak-by-kategori?kategoris=${kategoriArray.join(',')}`;
+                        const res = await fetch(url);
+
+                        if (!res.ok) {
+                            throw new Error('Failed to load rak');
+                        }
+
+                        const raks = await res.json();
+                        populateRakDropdown(raks);
+                    } catch(err) {
+                        console.error('Error loading filtered rak:', err);
+                        alert('Error loading rak: ' + err.message);
+                    }
+                }
+
+                // Function untuk populate dropdown rak
+                function populateRakDropdown(raks) {
+                    const select = $('#select-rak');
+                    select.empty();
+                    select.append('<option value="">-- Pilih Rak --</option>');
+
+                    if (raks.length === 0) {
+                        select.append('<option value="" disabled>Tidak ada rak tersedia untuk kategori ini</option>');
+                        return;
+                    }
+
+                    raks.forEach(rak => {
+                        select.append(`
+                <option value="${rak.id}">
+                    ${rak.nama} (Kapasitas: ${rak.kapasitas}, ${rak.kolom}x${rak.baris}) - ${rak.kategori_nama}
+                </option>
+            `);
+                    });
+                }
+
+                // Submit bulk form
                 $('#form-bulk-tatarak').on('submit', async function(e) {
                     e.preventDefault();
 
-                    const selectedIds = [];
-                    $('#eksemplar-table .select-eksemplar:checked').each(function() {
-                        selectedIds.push(parseInt($(this).data('id')));
+                    // Kumpulkan semua eksemplar dari semua buku terpilih
+                    const allEksemplarIds = [];
+                    Object.values(selectedBooksData).forEach(data => {
+                        allEksemplarIds.push(...data.eksemplar);
                     });
 
-                    console.log('Selected IDs:', selectedIds);
-
-                    if (selectedIds.length === 0) return alert('Pilih minimal 1 eksemplar!');
+                    if (allEksemplarIds.length === 0) {
+                        return alert('Pilih minimal 1 eksemplar dari buku!');
+                    }
 
                     const idRak = $('#select-rak').val();
                     if (!idRak) return alert('Pilih rak!');
 
-                    // Generate positions
+                    // Generate positions (sequential)
                     const positions = [];
-                    for (let i = 0; i < selectedIds.length; i++) {
+                    for (let i = 0; i < allEksemplarIds.length; i++) {
                         positions.push({
-                            kolom: (i % 5) + 1,
+                            kolom: (i % 5) + 1,  // Asumsi 5 kolom per baris
                             baris: Math.floor(i / 5) + 1
                         });
                     }
-
-                    console.log('Sending data:', { selectedIds, idRak, positions });
 
                     try {
                         const res = await fetch('{{ route('admin.tataraks.bulkStore') }}', {
@@ -545,30 +712,28 @@
                                 'Accept': 'application/json'
                             },
                             body: JSON.stringify({
-                                id_buku_items: selectedIds,
+                                id_buku_items: allEksemplarIds,
                                 id_rak: idRak,
                                 positions: positions
                             })
                         });
 
                         const data = await res.json();
-                        console.log('Response:', data);
 
                         if (!res.ok) throw new Error(data.error || data.message || 'Failed');
 
-                        bootstrap.Modal.getInstance(document.getElementById('modalBulkTatarak')).hide();
+                        $('#modalBulkTatarak').modal('hide');
 
-                        // Call global function
                         if (typeof window.fetchTataraks === 'function') {
                             window.fetchTataraks(window.currentFilters || {});
                         }
 
-                        alert(data.message || 'Bulk berhasil!');
+                        alert(data.message || 'Bulk penataan berhasil!');
 
                         // Reset
+                        selectedBooksData = {};
+                        updateSelectedBooksDisplay();
                         $('#form-bulk-tatarak')[0].reset();
-                        $('#select-buku').val(null).trigger('change');
-                        $('#eksemplar-section').hide();
 
                     } catch (err) {
                         console.error('Submit error:', err);
@@ -578,14 +743,17 @@
 
                 // Reset on modal close
                 $('#modalBulkTatarak').on('hidden.bs.modal', function() {
-                    $('#form-bulk-tatarak')[0].reset();
-                    $('#select-buku').val(null).trigger('change');
-                    $('#eksemplar-section').hide();
-                    if (eksemplarTable !== null) {
-                        eksemplarTable.destroy();
-                        eksemplarTable = null;
-                    }
+                    // Jangan reset selectedBooksData, biar user bisa kembali edit
                 });
+
+                // Debounce helper
+                function debounce(func, wait) {
+                    let timeout;
+                    return function(...args) {
+                        clearTimeout(timeout);
+                        timeout = setTimeout(() => func.apply(this, args), wait);
+                    };
+                }
             });
         </script>
 

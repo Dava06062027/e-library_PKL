@@ -182,7 +182,14 @@
                 <li class="nav-item">
                     <a href="{{ route('admin.tataraks.index') }}"
                        class="nav-link {{ request()->is('admin/tataraks*') ? 'active' : '' }}">
-                        <i class="bi bi-journal-check me-2"></i> Penataan Rak
+                        <i class="bi bi-bookshelf me-2"></i> Penataan Buku
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="{{ route('admin.peminjamans.index') }}"
+                       class="nav-link {{ request()->is('admin/peminjamans*') ? 'active' : '' }}">
+                        <i class="bi bi-journal-check me-2"></i> History Pinjaman
                     </a>
                 </li>
             @endif

@@ -11,7 +11,7 @@ use App\Http\Controllers\LokasiRakController;
 use App\Http\Controllers\PenerbitController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\TataraksController;
-
+use App\Http\Controllers\Admin\PeminjamanController;  // Tambah ini untuk PeminjamanController
 
 Route::get('/', function () {
     return view('welcome');
@@ -49,6 +49,10 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('raks', RakController::class)->only(['index','show']);
     Route::resource('lokasis', LokasiRakController::class)->only(['index','show']);
     Route::resource('penerbits', PenerbitController::class)->only(['index','show']);
+
+    // Tambah untuk member: lihat peminjaman sendiri (opsional, jika ingin)
+    Route::get('/peminjamans', [PeminjamanController::class, 'myIndex'])->name('peminjamans.myIndex');  // Method baru di controller untuk filter by user
+    Route::get('/peminjamans/{id}', [PeminjamanController::class, 'show'])->name('peminjamans.show');  // Show single
 });
 
 // ==========================
@@ -74,13 +78,25 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
         Route::get('/users/{user}', [AdminController::class, 'show'])->name('users.show');
         Route::put('/users/{user}', [AdminController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [AdminController::class, 'destroy'])->name('users.destroy');
+        Route::get('tataraks/search-buku-datatable', [TataraksController::class, 'searchBukuDatatable'])->name('tataraks.searchBukuDatatable');
         Route::post('tataraks/bulk', [TataraksController::class, 'bulkStore'])->name('tataraks.bulkStore');
-        Route::get('tataraks/preview/{idBuku}', [TataraksController::class, 'preview'])->name('tataraks.preview');
 
+        Route::get('/tataraks/available-eksemplar/{id_buku}', [TataraksController::class, 'availableEksemplarByBuku'])->name('admin.tataraks.availableEksemplarByBuku');
+        Route::get('/tataraks/buku-kategori/{id_buku}', [TataraksController::class, 'getBukuKategori'])->name('admin.tataraks.getBukuKategori');
+        Route::get('/tataraks/rak-by-kategori', [TataraksController::class, 'getRakByKategori'])->name('admin.tataraks.getRakByKategori');
         Route::get('tataraks/available-items', [TataraksController::class, 'availableItems'])->name('tataraks.available-items');
         Route::delete('tataraks/destroy-selected', [TataraksController::class, 'destroySelected'])->name('tataraks.destroySelected');
         Route::resource('tataraks', TataraksController::class)
             ->except(['create', 'edit']);
+
+        // Tambah routes untuk peminjaman di sini (mirip tataraks)
+        Route::resource('peminjamans', PeminjamanController::class)
+            ->except(['create', 'edit']);  // Index, show, store, update, destroy (adjust jika perlu)
+        Route::post('peminjamans/return', [PeminjamanController::class, 'returnStore'])->name('peminjamans.return');
+        Route::post('peminjamans/extend', [PeminjamanController::class, 'extendUpdate'])->name('peminjamans.extend');
+        Route::get('peminjamans/bukus', [PeminjamanController::class, 'getBukus'])->name('peminjamans.bukus');  // Untuk modal select buku
+        Route::get('peminjamans/eksemplars/{bukuId}', [PeminjamanController::class, 'getEksemplars'])->name('peminjamans.eksemplars');  // Untuk eksemplar
+        Route::delete('peminjamans/destroy-selected', [PeminjamanController::class, 'destroySelected'])->name('peminjamans.destroySelected');  // Jika ada bulk delete
     });
 });
 
@@ -91,7 +107,7 @@ Route::middleware(['auth', 'isAdmin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
-        // Admin-only routes (jika ada)
+        // Admin-only routes (jika ada, misal approve officer atau sesuatu)
     });
 
 require __DIR__.'/auth.php';
