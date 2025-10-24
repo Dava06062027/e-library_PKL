@@ -11,12 +11,16 @@ class LokasiRak extends Model
 
     protected $table = 'lokasi_raks';
     protected $primaryKey = 'id';
+
     public $timestamps = false;
 
-    protected $fillable = ['ruang'];
+    protected $fillable = [
+        'ruang'
+    ];
 
+    // Relationship ke raks (1 lokasi bisa punya banyak rak)
     public function raks()
     {
-        return $this->hasMany(Rak::class, 'id_lokasi', 'id');
+        return $this->hasMany(Rak::class, 'id_lokasi');
     }
 }

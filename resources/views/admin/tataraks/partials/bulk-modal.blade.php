@@ -1,61 +1,54 @@
 <div class="modal fade" id="modalBulkTatarak" tabindex="-1">
-    <div class="modal-dialog modal-lg"> <!-- Lebih besar untuk datatable -->
+    <div class="modal-dialog modal-xl">
         <form id="form-bulk-tatarak" class="modal-content">
             @csrf
-            <div class="modal-header"><h5 class="modal-title">Bulk Penataan</h5></div>
+            <div class="modal-header">
+                <h5 class="modal-title">Bulk Penataan Buku</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
             <div class="modal-body">
-                <!-- Step 1: Pilih Judul Buku -->
+                <!-- Step 1: Button untuk tambah buku -->
                 <div class="mb-3">
-                    <label>Pilih Judul Buku</label>
-                    <select id="select-buku" class="form-select" required>
-                        <option value="">-- Pilih --</option>
-                        @foreach(\App\Models\Buku::all() as $buku)
-                            <option value="{{ $buku->id }}">{{ $buku->judul }}</option>
-                        @endforeach
-                    </select>
+                    <label class="form-label fw-bold">Pilih Buku & Eksemplar</label>
+                    <button id="btn-add-buku" type="button" class="btn btn-primary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalSelectBuku">
+                        <i class="bi bi-plus-lg"></i>
+                        <span>Tambah Buku</span>
+                    </button>
                 </div>
 
-                <!-- Step 2: List Eksemplar dengan Datatable -->
-                <div id="eksemplar-section" style="display:none;">
-                    <h6>Eksemplar Tersedia</h6>
-                    <table id="eksemplar-table" class="table table-hover">
-                        <thead>
-                        <tr>
-                            <th><input type="checkbox" id="select-all-eksemplar"></th>
-                            <th>Barcode</th>
-                            <th>Kondisi</th>
-                            <th>Status</th>
-                        </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-
-                    <!-- Range Barcode Input -->
-                    <div class="mt-3">
-                        <label>Input Range Barcode (misal: 2001-2017)</label>
-                        <input id="range-barcode" class="form-control" placeholder="2001-2017">
-                        <button type="button" id="btn-apply-range" class="btn btn-secondary mt-2">Apply Range</button>
+                <!-- Step 2: Daftar buku & eksemplar yang sudah dipilih -->
+                <div id="selected-books-container" class="mb-4" style="display:none;">
+                    <h6 class="fw-bold mb-3">Buku & Eksemplar Terpilih:</h6>
+                    <div id="selected-books-list" class="border rounded p-3 bg-light">
+                        <!-- Will be populated dynamically -->
                     </div>
-
+                    <div class="mt-2 text-muted">
+                        <small>Total Eksemplar: <span id="total-eksemplar-count">0</span></small>
+                    </div>
                 </div>
 
-                <!-- Step 3: Pilih Rak & Positions (auto/manual) -->
-                <div class="mb-3 mt-3">
-                    <label>Rak</label>
+                <!-- Step 3: Pilih Rak -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Rak Tujuan</label>
                     <select name="id_rak" id="select-rak" class="form-select" required>
+                        <option value="">-- Pilih Rak --</option>
                         @foreach(\App\Models\Rak::all() as $rak)
-                            <option value="{{ $rak->id }}">{{ $rak->nama }} (Kapasitas: {{ $rak->kapasitas }})</option>
+                            <option value="{{ $rak->id }}">{{ $rak->nama }} (Kapasitas: {{ $rak->kapasitas }}, {{ $rak->kolom }}x{{ $rak->baris }})</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="form-check">
-                    <input type="checkbox" id="auto-position" checked>
-                    <label for="auto-position">Auto Generate Positions (Sequential dari Slot Kosong)</label>
+
+                <!-- Step 4: Auto position option -->
+                <div class="form-check mb-3">
+                    <input type="checkbox" id="auto-position" class="form-check-input" checked>
+                    <label class="form-check-label" for="auto-position">
+                        Auto Generate Posisi (Sequential dari slot kosong pertama)
+                    </label>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" data-bs-dismiss="modal" class="btn btn-secondary">Close</button>
-                <button type="submit" class="btn btn-primary">Submit Bulk</button>
+                <button type="button" data-bs-dismiss="modal" class="btn btn-secondary">Batal</button>
+                <button type="submit" class="btn btn-primary">Submit Penataan</button>
             </div>
         </form>
     </div>

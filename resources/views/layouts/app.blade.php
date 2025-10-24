@@ -14,7 +14,6 @@
 
     <!-- DataTables CSS & JS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
-    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/select/1.4.0/js/dataTables.select.min.js"></script> <!-- Untuk multi-select -->
 
     <!-- Select2 CSS & JS -->
@@ -182,7 +181,14 @@
                 <li class="nav-item">
                     <a href="{{ route('admin.tataraks.index') }}"
                        class="nav-link {{ request()->is('admin/tataraks*') ? 'active' : '' }}">
-                        <i class="bi bi-journal-check me-2"></i> Penataan Rak
+                        <i class="bi bi-bookshelf me-2"></i> Penataan Buku
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="{{ route('admin.peminjamans.index') }}"
+                       class="nav-link {{ request()->is('admin/peminjamans*') ? 'active' : '' }}">
+                        <i class="bi bi-journal-check me-2"></i> History Pinjaman
                     </a>
                 </li>
             @endif
@@ -245,7 +251,7 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 @stack('scripts')
 
-<!-- INI AJAX untuk search bar di bukus -->
+
 <script>
     $(document).ready(function () {
         $('#search').on('keyup', function () {
@@ -280,7 +286,7 @@
 </script>
 
 
-<!-- INI AJAX untuk search bar di bukuitems -->
+
 <script>
     $(function () {
         const $input = $('#search-item');
@@ -288,7 +294,7 @@
 
         if (!$input.length || !$tbody.length) return; // safety
 
-        // simpan isi asli supaya bisa restore saat input kosong
+
         const originalRows = $tbody.html();
 
         function escapeHtml(str) {
@@ -348,13 +354,13 @@
     });
 </script>
 
---! ini query DataTables.js ----
+
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 
---! ini query Select2.js ----
+
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
----! ini query Quagga.js -----
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/1.0.0-beta.2/quagga.min.js"></script>
 
 </body>

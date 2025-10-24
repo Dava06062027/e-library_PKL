@@ -13,7 +13,6 @@
                 $daysLate = $today->diffInDays($dueDate);
             }
         } elseif ($peminjaman->pengembalian) {
-            // Already returned, get from pengembalian record
             $dueDate = \Carbon\Carbon::parse($peminjaman->tanggal_kembali_rencana);
             $returnDate = \Carbon\Carbon::parse($peminjaman->pengembalian->tanggal_kembali_aktual);
             if ($returnDate->gt($dueDate)) {
@@ -23,6 +22,16 @@
 
 
         $perpanjanganCount = $peminjaman->perpanjangans()->count();
+
+
+        $returnDateFormatted = '';
+        $returnOfficerName = '';
+        if ($peminjaman->pengembalian) {
+            $returnDateFormatted = $peminjaman->pengembalian->tanggal_kembali_aktual
+                ? \Carbon\Carbon::parse($peminjaman->pengembalian->tanggal_kembali_aktual)->format('d M Y')
+                : '';
+            $returnOfficerName = $peminjaman->pengembalian->officer?->name ?? 'N/A';
+        }
     @endphp
     <tr data-id="{{ $peminjaman->id }}" class="border-bottom border-m365">
         <td>
@@ -31,8 +40,8 @@
                    value="{{ $peminjaman->id }}"
                    data-status="{{ $peminjaman->status }}"
                    data-member-name="{{ $peminjaman->member?->name ?? 'N/A' }}"
-                   data-return-date="{{ $peminjaman->pengembalian ? $peminjaman->pengembalian->tanggal_kembali_aktual->format('d M Y') : '' }}"
-                   data-officer-name="{{ $peminjaman->pengembalian?->officer?->name ?? 'N/A' }}"
+                   data-return-date="{{ $returnDateFormatted }}"
+                   data-officer-name="{{ $returnOfficerName }}"
                    data-perpanjangan-count="{{ $perpanjanganCount }}">
         </td>
         <td>{{ $peminjaman->id }}</td>
@@ -55,14 +64,14 @@
             @if($daysLate > 0)
                 <span class="badge bg-danger">{{ $daysLate }} hari</span>
             @else
-                <span class="badge bg-success">Tepat Waktu</span>
+                <span class="badge bg-success">0 hari</span>
             @endif
         </td>
         <td>Rp {{ number_format($peminjaman->pengembalian?->total_denda ?? 0, 0, ',', '.') }}</td>
         <td>
             <div class="d-flex align-items-center">
                 <span class="bg-{{ $avatarColor }} text-white rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold me-2" style="width: 32px; height: 32px; font-size: 14px;">
-                    {{ $initial }}
+                    {{ strtoupper(substr($peminjaman->officer?->name ?? 'U', 0, 1)) }}
                 </span>
                 <span class="text-m365-blue">{{ $peminjaman->officer?->name ?? 'Unknown' }}</span>
             </div>

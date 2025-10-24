@@ -46,12 +46,12 @@
                 <tbody id="bukuitem-list">
                 @foreach($bukuitems as $item)
                     <tr>
-                        <td>{{ $item->id }}</td>
-                        <td>{{ $item->buku->judul }}</td>
-                        <td>{{ $item->barcode }}</td>
-                        <td>{{ $item->rak->barcode }}</td>
-                        <td>{{ $item->kondisi }}</td>
-                        <td>{{ $item->status }}</td>
+                        <td>{{ $item->id ?? '-'}}</td>
+                        <td>{{ $item->buku->judul ?? '-'}}</td>
+                        <td>{{ $item->barcode ?? '-'}}</td>
+                        <td>{{ $item->rak->barcode ?? '-'}}</td>
+                        <td>{{ $item->kondisi ?? '-'}}</td>
+                        <td>{{ $item->status ?? '-'}}</td>
                         <td class="text-center">
                             <a href="{{ route('bukuitems.show', $item->id) }}" class="btn btn-info btn-sm"><i class="fas fa-eye"></i></a>
                             @can('update', $item)

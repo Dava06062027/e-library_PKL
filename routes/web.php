@@ -11,7 +11,7 @@ use App\Http\Controllers\LokasiRakController;
 use App\Http\Controllers\PenerbitController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\TataraksController;
-
+use App\Http\Controllers\Admin\PeminjamanController;  // Tambah ini untuk PeminjamanController
 
 Route::get('/', function () {
     return view('welcome');
@@ -49,11 +49,16 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('raks', RakController::class)->only(['index','show']);
     Route::resource('lokasis', LokasiRakController::class)->only(['index','show']);
     Route::resource('penerbits', PenerbitController::class)->only(['index','show']);
+
+    // Tambah untuk member: lihat peminjaman sendiri (opsional, jika ingin)
+    Route::get('/peminjamans', [PeminjamanController::class, 'myIndex'])->name('peminjamans.myIndex');  // Method baru di controller untuk filter by user
+    Route::get('/peminjamans/{id}', [PeminjamanController::class, 'show'])->name('peminjamans.show');  // Show single
 });
 
 // ==========================
 // 📌 Officer + Admin
 // ==========================
+
 Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
 
     // CRUD koleksi
@@ -74,13 +79,49 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
         Route::get('/users/{user}', [AdminController::class, 'show'])->name('users.show');
         Route::put('/users/{user}', [AdminController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [AdminController::class, 'destroy'])->name('users.destroy');
-        Route::post('tataraks/bulk', [TataraksController::class, 'bulkStore'])->name('tataraks.bulkStore');
-        Route::get('tataraks/preview/{idBuku}', [TataraksController::class, 'preview'])->name('tataraks.preview');
 
+        // ✅ PENTING: Routes khusus tataraks harus SEBELUM resource route
+        Route::get('tataraks/search-buku-datatable', [TataraksController::class, 'searchBukuDatatable'])->name('tataraks.searchBukuDatatable');
+        Route::post('tataraks/bulk', [TataraksController::class, 'bulkStore'])->name('tataraks.bulkStore');
+        Route::get('/tataraks/available-eksemplar/{id_buku}', [TataraksController::class, 'availableEksemplarByBuku'])->name('tataraks.availableEksemplarByBuku');
+        Route::get('/tataraks/buku-kategori/{id_buku}', [TataraksController::class, 'getBukuKategori'])->name('tataraks.getBukuKategori');
+        Route::get('/tataraks/rak-by-kategori', [TataraksController::class, 'getRakByKategori'])->name('tataraks.getRakByKategori');
         Route::get('tataraks/available-items', [TataraksController::class, 'availableItems'])->name('tataraks.available-items');
         Route::delete('tataraks/destroy-selected', [TataraksController::class, 'destroySelected'])->name('tataraks.destroySelected');
-        Route::resource('tataraks', TataraksController::class)
-            ->except(['create', 'edit']);
+
+        // Resource route terakhir (karena catch-all)
+        Route::resource('tataraks', TataraksController::class)->except(['create', 'edit']);
+
+        // ✅ MEMBER SELECTION ROUTES
+        Route::get('/peminjamans/search-member-datatable', [PeminjamanController::class, 'searchMemberDatatable'])
+            ->name('peminjamans.searchMemberDatatable');
+        Route::get('/peminjamans/check-member-eligibility/{memberId}', [PeminjamanController::class, 'checkMemberEligibility'])
+            ->name('peminjamans.checkMemberEligibility');
+
+
+        // Buku selection
+        Route::get('/peminjamans/search-buku-datatable', [PeminjamanController::class, 'searchBukuDatatable'])
+            ->name('peminjamans.searchBukuDatatable');
+        Route::get('/peminjamans/available-eksemplar/{id_buku}', [PeminjamanController::class, 'availableEksemplarByBuku'])
+            ->name('peminjamans.availableEksemplarByBuku');
+
+        // Delete selected
+        Route::delete('/peminjamans/destroy-selected', [PeminjamanController::class, 'destroySelected'])
+            ->name('peminjamans.destroySelected');
+
+        // Actions
+        Route::post('/peminjamans/return', [PeminjamanController::class, 'returnStore'])
+            ->name('peminjamans.return');
+        Route::post('/peminjamans/extend', [PeminjamanController::class, 'extendUpdate'])
+            ->name('peminjamans.extend');
+
+        // General CRUD
+        Route::get('/peminjamans', [PeminjamanController::class, 'index'])
+            ->name('peminjamans.index');
+        Route::get('/peminjamans/{id}', [PeminjamanController::class, 'show'])
+            ->name('peminjamans.show');
+        Route::post('/peminjamans', [PeminjamanController::class, 'store'])
+            ->name('peminjamans.store');
     });
 });
 
@@ -91,7 +132,7 @@ Route::middleware(['auth', 'isAdmin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
-        // Admin-only routes (jika ada)
+        // Admin-only routes (jika ada, misal approve officer atau sesuatu)
     });
 
 require __DIR__.'/auth.php';
