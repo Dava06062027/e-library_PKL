@@ -4,63 +4,56 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Peminjaman;
-use App\Models\Pengembalian;
+use App\Models\PeminjamanItem;
 use App\Models\Perpanjangan;
 use App\Models\BukuItem;
 use App\Models\Buku;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PeminjamanController extends Controller
 {
-    // REPLACE index() method in PeminjamanController.php
-
+    // =====================================================
+    // INDEX - List all transactions with filters & search
+    // =====================================================
     public function index(Request $request)
     {
-        $query = Peminjaman::with(['member', 'bukuItem.buku', 'officer', 'pengembalian', 'perpanjangans']);
+        $query = Peminjaman::with(['member', 'officer', 'items.bukuItem.buku', 'perpanjangans']);
 
-        // ✅ ENHANCED SEARCH: member, judul buku, barcode, petugas
-        if ($search = $request->search) {
+        // SEARCH: member name, transaction number, book title, barcode
+        if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
-                // Search by member name
-                $q->whereHas('member', fn($subQ) => $subQ->where('name', 'like', "%$search%"))
-                    // Search by buku judul
-                    ->orWhereHas('bukuItem.buku', fn($subQ) => $subQ->where('judul', 'like', "%$search%"))
-                    // Search by barcode
-                    ->orWhereHas('bukuItem', fn($subQ) => $subQ->where('barcode', 'like', "%$search%"))
-                    // Search by officer name
-                    ->orWhereHas('officer', fn($subQ) => $subQ->where('name', 'like', "%$search%"));
+                $q->where('transaction_number', 'like', "%$search%")
+                    ->orWhereHas('member', fn($subQ) => $subQ->where('name', 'like', "%$search%"))
+                    ->orWhereHas('officer', fn($subQ) => $subQ->where('name', 'like', "%$search%"))
+                    ->orWhereHas('items.bukuItem.buku', fn($subQ) => $subQ->where('judul', 'like', "%$search%"))
+                    ->orWhereHas('items.bukuItem', fn($subQ) => $subQ->where('barcode', 'like', "%$search%"));
             });
         }
 
-        // ✅ FILTER 1: Status (Dipinjam / Dikembalikan)
-        if ($status = $request->status) {
-            $query->where('status', $status);
+        // FILTER: Status Transaksi
+        if ($status = $request->input('status')) {
+            $query->where('status_transaksi', $status);
         }
 
-        // ✅ FILTER 2: Tanggal (pinjam/due/kembali di tanggal ini)
-        if ($tanggal = $request->tanggal) {
+        // FILTER: Tanggal (pinjam atau due date)
+        if ($tanggal = $request->input('tanggal')) {
             $query->where(function ($q) use ($tanggal) {
-                // Tanggal pinjam
                 $q->whereDate('tanggal_pinjam', $tanggal)
-                    // Due date
-                    ->orWhereDate('tanggal_kembali_rencana', $tanggal)
-                    // Tanggal kembali aktual
-                    ->orWhereHas('pengembalian', fn($subQ) => $subQ->whereDate('tanggal_kembali_aktual', $tanggal));
+                    ->orWhereDate('tanggal_kembali_rencana', $tanggal);
             });
         }
 
-        // ✅ FILTER 3: Status Keterlambatan (hanya untuk Dipinjam)
-        if ($keterlambatan = $request->keterlambatan) {
-            $query->where('status', 'Dipinjam');
+        // FILTER: Keterlambatan (only for Dipinjam/Diperpanjang status)
+        if ($keterlambatan = $request->input('keterlambatan')) {
+            $query->whereIn('status_transaksi', ['Dipinjam', 'Diperpanjang']);
 
             if ($keterlambatan === 'tepat_waktu') {
-                // Due date >= today
                 $query->whereDate('tanggal_kembali_rencana', '>=', now()->toDateString());
             } elseif ($keterlambatan === 'telat') {
-                // Due date < today (sudah melewati due date)
                 $query->whereDate('tanggal_kembali_rencana', '<', now()->toDateString());
             }
         }
@@ -68,557 +61,308 @@ class PeminjamanController extends Controller
         $peminjamans = $query->latest('id')->paginate(10);
 
         if ($request->ajax()) {
-            return view('admin.peminjamans.partials.rows', compact('peminjamans'));
+            // Return only the rows HTML for Ajax requests
+            $rowsHtml = view('admin.peminjamans.partials.rows', compact('peminjamans'))->render();
+            $paginationHtml = view('admin.peminjamans.partials.pagination', compact('peminjamans'))->render();
+
+            return response()->json([
+                'rows' => $rowsHtml,
+                'pagination' => $paginationHtml
+            ]);
         }
 
         return view('admin.peminjamans.index', compact('peminjamans'));
     }
 
-    /**
-     * Get single peminjaman data (for extend modal)
-     */
+    // =====================================================
+    // SHOW - Get single transaction detail
+    // =====================================================
     public function show($id)
     {
-        try {
-            $peminjaman = Peminjaman::with(['member', 'bukuItem.buku', 'officer', 'pengembalian', 'perpanjangans'])
-                ->findOrFail($id);
+        $peminjaman = Peminjaman::with([
+            'member',
+            'officer',
+            'items.bukuItem.buku',
+            'perpanjangans.officer'
+        ])->findOrFail($id);
 
-            return response()->json([
-                'id' => $peminjaman->id,
-                'id_member' => $peminjaman->id_member,
-                'member_name' => $peminjaman->member->name ?? 'N/A',
-                'buku_judul' => $peminjaman->bukuItem->buku->judul ?? 'N/A',
-                'barcode' => $peminjaman->bukuItem->barcode ?? 'N/A',
-                'tanggal_pinjam' => $peminjaman->tanggal_pinjam->format('Y-m-d'),
-                'tanggal_kembali_rencana' => $peminjaman->tanggal_kembali_rencana->format('Y-m-d'),
-                'status' => $peminjaman->status,
-                'catatan' => $peminjaman->catatan,
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Show peminjaman error: ' . $e->getMessage());
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * DataTables serverside untuk daftar member dengan info pinjaman aktif
-     */
-    public function searchMemberDatatable(Request $request)
-    {
-        try {
-            \Log::info('searchMemberDatatable called', ['request' => $request->all()]);
-
-            $query = User::where('role', 'Member');
-
-            // Search global (name or email)
-            if ($request->has('search') && isset($request->search['value']) && $request->search['value'] != '') {
-                $search = $request->search['value'];
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
-                });
-            }
-
-            // Count total
-            $totalRecords = User::where('role', 'Member')->count();
-            $filteredRecords = $query->count();
-
-            // Order
-            if ($request->has('order') && count($request->order) > 0) {
-                $orderColIndex = $request->order[0]['column'];
-
-                if (isset($request->columns[$orderColIndex])) {
-                    $orderCol = $request->columns[$orderColIndex]['data'];
-                    $orderDir = $request->order[0]['dir'];
-
-                    $allowedColumns = ['id', 'name', 'email'];
-                    if (in_array($orderCol, $allowedColumns)) {
-                        $query->orderBy($orderCol, $orderDir);
-                    }
-                }
-            } else {
-                $query->orderBy('id', 'desc');
-            }
-
-            // Pagination
-            $start = $request->input('start', 0);
-            $length = $request->input('length', 10);
-
-            $members = $query->skip($start)->take($length)->get();
-
-            // Map data dengan info pinjaman aktif
-            $data = $members->map(function ($member) {
-                // Hitung pinjaman aktif (status = 'Dipinjam')
-                $pinjamanAktif = Peminjaman::where('id_member', $member->id)
-                    ->where('status', 'Dipinjam')
-                    ->count();
-
-                // Status: Available jika pinjaman < 2, Full jika = 2
-                $status = 'Available';
-                $statusColor = 'success';
-                if ($pinjamanAktif >= 2) {
-                    $status = 'Full (Max)';
-                    $statusColor = 'danger';
-                } elseif ($pinjamanAktif == 1) {
-                    $status = 'Available (1 slot)';
-                    $statusColor = 'warning';
-                }
-
-                $canBorrow = $pinjamanAktif < 2;
-
-                return [
-                    'id' => $member->id,
-                    'name' => $member->name ?? 'N/A',
-                    'email' => $member->email ?? 'N/A',
-                    'pinjaman_aktif' => $pinjamanAktif,
-                    'status' => $status,
-                    'status_color' => $statusColor,
-                    'can_borrow' => $canBorrow,
-                ];
-            });
-
-            $response = [
-                'draw' => intval($request->input('draw', 1)),
-                'recordsTotal' => $totalRecords,
-                'recordsFiltered' => $filteredRecords,
-                'data' => $data->toArray()
+        $items = $peminjaman->items->map(function($item) {
+            return [
+                'id' => $item->id,
+                'buku_judul' => $item->bukuItem->buku->judul ?? 'N/A',
+                'barcode' => $item->bukuItem->barcode ?? 'N/A',
+                'kondisi_pinjam' => $item->kondisi_pinjam,
+                'status_item' => $item->status_item,
+                'tanggal_kembali_aktual' => $item->tanggal_kembali_aktual ? $item->tanggal_kembali_aktual->format('d M Y') : null,
+                'kondisi_kembali' => $item->kondisi_kembali,
+                'denda_keterlambatan' => number_format($item->denda_keterlambatan, 0, ',', '.'),
+                'denda_kerusakan' => number_format($item->denda_kerusakan, 0, ',', '.'),
+                'total_denda_item' => number_format($item->total_denda_item, 0, ',', '.'),
             ];
+        });
 
-            return response()->json($response);
-
-        } catch (\Exception $e) {
-            \Log::error('searchMemberDatatable error: ' . $e->getMessage());
-
-            return response()->json([
-                'draw' => intval($request->input('draw', 1)),
-                'recordsTotal' => 0,
-                'recordsFiltered' => 0,
-                'data' => [],
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Check apakah member eligible untuk meminjam (max 2 eksemplar aktif)
-     */
-    public function checkMemberEligibility($memberId)
-    {
-        try {
-            $member = User::findOrFail($memberId);
-
-            if ($member->role !== 'Member') {
-                return response()->json([
-                    'eligible' => false,
-                    'message' => 'User bukan Member'
-                ], 400);
-            }
-
-            $pinjamanAktif = Peminjaman::where('id_member', $memberId)
-                ->where('status', 'Dipinjam')
-                ->count();
-
-            $eligible = $pinjamanAktif < 2;
-            $remainingSlots = max(0, 2 - $pinjamanAktif);
-
-            return response()->json([
-                'eligible' => $eligible,
-                'pinjaman_aktif' => $pinjamanAktif,
-                'remaining_slots' => $remainingSlots,
-                'max_allowed' => 2,
-                'message' => $eligible
-                    ? "Member dapat meminjam (sisa slot: $remainingSlots)"
-                    : "Member sudah mencapai batas maksimal peminjaman (2 eksemplar)"
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('checkMemberEligibility error: ' . $e->getMessage());
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * DataTables serverside untuk daftar buku (hanya yang punya eksemplar tersedia untuk dipinjam)
-     */
-    public function searchBukuDatatable(Request $request)
-    {
-        try {
-            \Log::info('searchBukuDatatable (Peminjaman) called', ['request' => $request->all()]);
-
-            $query = Buku::query();
-
-            // ✅ CRITICAL: Hanya buku yang punya eksemplar dengan kondisi "Baik" DAN status "Tersedia"
-            $query->whereHas('items', function($q) {
-                $q->where('kondisi', 'Baik')
-                    ->where('status', 'Tersedia');
-            });
-
-            // Search global (judul or pengarang)
-            if ($request->has('search') && isset($request->search['value']) && $request->search['value'] != '') {
-                $search = $request->search['value'];
-                $query->where(function ($q) use ($search) {
-                    $q->where('judul', 'like', "%{$search}%")
-                        ->orWhere('pengarang', 'like', "%{$search}%");
-                });
-            }
-
-            // Filter tahun_terbit (column 3)
-            if ($request->has('columns') &&
-                isset($request->columns[3]) &&
-                isset($request->columns[3]['search']['value']) &&
-                $request->columns[3]['search']['value'] != '') {
-                $tahun = $request->columns[3]['search']['value'];
-                $query->where('tahun_terbit', $tahun);
-            }
-
-            // Count total
-            $totalRecords = Buku::whereHas('items', function($q) {
-                $q->where('kondisi', 'Baik')->where('status', 'Tersedia');
-            })->count();
-
-            $filteredRecords = $query->count();
-
-            // Order
-            if ($request->has('order') && count($request->order) > 0) {
-                $orderColIndex = $request->order[0]['column'];
-
-                if (isset($request->columns[$orderColIndex])) {
-                    $orderCol = $request->columns[$orderColIndex]['data'];
-                    $orderDir = $request->order[0]['dir'];
-
-                    $allowedColumns = ['id', 'judul', 'pengarang', 'tahun_terbit'];
-                    if (in_array($orderCol, $allowedColumns)) {
-                        $query->orderBy($orderCol, $orderDir);
-                    }
-                }
-            } else {
-                $query->orderBy('id', 'desc');
-            }
-
-            // Pagination
-            $start = $request->input('start', 0);
-            $length = $request->input('length', 10);
-
-            $bukus = $query->skip($start)->take($length)->get();
-
-            // Map data
-            $data = $bukus->map(function ($buku) {
-                // Hitung eksemplar yang kondisi Baik DAN status Tersedia
-                $eksemplarTersedia = BukuItem::where('id_buku', $buku->id)
-                    ->where('kondisi', 'Baik')
-                    ->where('status', 'Tersedia')
-                    ->count();
-
-                return [
-                    'id' => $buku->id,
-                    'judul' => $buku->judul ?? 'N/A',
-                    'pengarang' => $buku->pengarang ?? 'N/A',
-                    'tahun_terbit' => $buku->tahun_terbit ?? 'N/A',
-                    'eksemplar_tersedia' => $eksemplarTersedia,
-                ];
-            });
-
-            $response = [
-                'draw' => intval($request->input('draw', 1)),
-                'recordsTotal' => $totalRecords,
-                'recordsFiltered' => $filteredRecords,
-                'data' => $data->toArray()
+        $perpanjangans = $peminjaman->perpanjangans->map(function($ext) {
+            return [
+                'tanggal_perpanjangan' => $ext->tanggal_perpanjangan->format('d M Y'),
+                'due_date_lama' => $ext->due_date_lama->format('d M Y'),
+                'due_date_baru' => $ext->due_date_baru->format('d M Y'),
+                'hari_perpanjangan' => $ext->hari_perpanjangan,
+                'biaya' => number_format($ext->biaya, 0, ',', '.'),
+                'officer_name' => $ext->officer->name ?? 'N/A',
             ];
+        });
 
-            return response()->json($response);
-
-        } catch (\Exception $e) {
-            \Log::error('searchBukuDatatable (Peminjaman) error: ' . $e->getMessage());
-
-            return response()->json([
-                'draw' => intval($request->input('draw', 1)),
-                'recordsTotal' => 0,
-                'recordsFiltered' => 0,
-                'data' => [],
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'id' => $peminjaman->id,
+            'transaction_number' => $peminjaman->transaction_number,
+            'member_name' => $peminjaman->member->name ?? 'N/A',
+            'member_email' => $peminjaman->member->email ?? 'N/A',
+            'officer_name' => $peminjaman->officer->name ?? 'N/A',
+            'tanggal_pinjam' => $peminjaman->tanggal_pinjam->format('d M Y'),
+            'tanggal_kembali_rencana' => $peminjaman->tanggal_kembali_rencana->format('d M Y'),
+            'status_transaksi' => $peminjaman->status_transaksi,
+            'total_items' => $peminjaman->total_items,
+            'items_dikembalikan' => $peminjaman->items_dikembalikan,
+            'total_denda' => number_format($peminjaman->total_denda, 0, ',', '.'),
+            'days_late' => $peminjaman->days_late,
+            'catatan' => $peminjaman->catatan ?? '-',
+            'items' => $items,
+            'perpanjangans' => $perpanjangans,
+        ]);
     }
 
-    /**
-     * Get available eksemplar untuk buku tertentu (kondisi Baik + status Tersedia)
-     */
-    public function availableEksemplarByBuku($id_buku)
-    {
-        try {
-            // ✅ CRITICAL: Hanya eksemplar dengan kondisi "Baik" DAN status "Tersedia"
-            $availableItems = BukuItem::where('id_buku', $id_buku)
-                ->where('kondisi', 'Baik')
-                ->where('status', 'Tersedia')
-                ->get()
-                ->map(function($item) {
-                    return [
-                        'id' => $item->id,
-                        'barcode' => $item->barcode,
-                        'kondisi' => $item->kondisi,
-                        'status' => $item->status,
-                        'sumber' => $item->sumber ?? 'N/A'
-                    ];
-                });
-
-            return response()->json($availableItems);
-
-        } catch (\Exception $e) {
-            \Log::error('availableEksemplarByBuku error: ' . $e->getMessage());
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
+    // =====================================================
+    // STORE - Create new transaction
+    // =====================================================
     public function store(Request $request)
     {
         try {
             $validated = $request->validate([
-                'id_member' => 'required|exists:users,id',
-                'id_buku_items' => 'required|array|min:1',
-                'id_buku_items.*' => 'exists:buku_items,id',
+                'id_member' => 'required|exists:users,id,role,Member',
+                'id_buku_items' => 'required|array|min:1|max:2',
+                'id_buku_items.*' => 'required|exists:buku_items,id',
                 'tanggal_pinjam' => 'required|date',
                 'tanggal_kembali_rencana' => 'required|date|after_or_equal:tanggal_pinjam',
-                'catatan' => 'nullable|string',
+                'catatan' => 'nullable|string|max:500',
             ]);
 
-            // ✅ VALIDATION 1: Member role check
-            $member = User::findOrFail($validated['id_member']);
-            if ($member->role !== 'Member') {
-                return response()->json(['error' => 'User bukan Member'], 400);
+            DB::beginTransaction();
+
+            // Check member eligibility
+            $activeCount = PeminjamanItem::whereHas('peminjaman', function($q) use ($validated) {
+                $q->where('id_member', $validated['id_member'])
+                    ->whereIn('status_transaksi', ['Dipinjam', 'Diperpanjang']);
+            })->where('status_item', 'Dipinjam')->count();
+
+            if ($activeCount + count($validated['id_buku_items']) > 2) {
+                throw new \Exception('Member sudah mencapai limit 2 peminjaman aktif!');
             }
 
-            // ✅ VALIDATION 2: Check member eligibility (max 2 pinjaman aktif)
-            $pinjamanAktif = Peminjaman::where('id_member', $validated['id_member'])
-                ->where('status', 'Dipinjam')
-                ->count();
-
-            $totalNewPinjam = count($validated['id_buku_items']);
-            $totalAfter = $pinjamanAktif + $totalNewPinjam;
-
-            if ($totalAfter > 2) {
-                return response()->json([
-                    'error' => "Member sudah memiliki {$pinjamanAktif} pinjaman aktif. Tidak bisa meminjam {$totalNewPinjam} eksemplar lagi (max 2 total)"
-                ], 400);
-            }
-
-            // ✅ VALIDATION 3: Tanggal pinjam harus hari ini
-            $today = Carbon::today()->toDateString();
-            if ($validated['tanggal_pinjam'] !== $today) {
-                return response()->json([
-                    'error' => 'Tanggal pinjam harus hari ini (' . Carbon::today()->format('d/m/Y') . ')'
-                ], 400);
-            }
-
-            // ✅ VALIDATION 4: Max 7 hari periode peminjaman
-            $tanggalPinjam = Carbon::parse($validated['tanggal_pinjam']);
-            $tanggalKembali = Carbon::parse($validated['tanggal_kembali_rencana']);
-            $diffDays = $tanggalPinjam->diffInDays($tanggalKembali);
-
-            if ($diffDays > 7) {
-                return response()->json([
-                    'error' => "Periode peminjaman maksimal 7 hari. Anda pilih {$diffDays} hari."
-                ], 400);
-            }
-
-            if ($diffDays < 1) {
-                return response()->json([
-                    'error' => 'Tanggal kembali minimal 1 hari dari tanggal pinjam.'
-                ], 400);
-            }
-
-            // ✅ VALIDATION 5: All buku_items available (kondisi Baik + status Tersedia)
+            // Check if all items are available
             $unavailableItems = BukuItem::whereIn('id', $validated['id_buku_items'])
-                ->where(function($q) {
-                    $q->where('kondisi', '!=', 'Baik')
-                        ->orWhere('status', '!=', 'Tersedia');
-                })
-                ->pluck('barcode')
-                ->toArray();
+                ->where('status', '!=', 'Tersedia')
+                ->pluck('barcode');
 
-            if (!empty($unavailableItems)) {
-                return response()->json([
-                    'error' => 'Beberapa eksemplar tidak tersedia: ' . implode(', ', $unavailableItems)
-                ], 400);
+            if ($unavailableItems->isNotEmpty()) {
+                throw new \Exception('Item tidak tersedia: ' . $unavailableItems->implode(', '));
             }
 
-            $officerId = Auth::id();
-            $created = [];
+            // Create transaction
+            $peminjaman = Peminjaman::create([
+                'id_member' => $validated['id_member'],
+                'id_officer' => Auth::id(),
+                'tanggal_pinjam' => $validated['tanggal_pinjam'],
+                'tanggal_kembali_rencana' => $validated['tanggal_kembali_rencana'],
+                'status_transaksi' => 'Dipinjam',
+                'catatan' => $validated['catatan'] ?? null,
+            ]);
 
-            // Create peminjaman records
-            foreach ($validated['id_buku_items'] as $itemId) {
-                $peminjaman = Peminjaman::create([
-                    'id_member' => $validated['id_member'],
-                    'id_buku_item' => $itemId,
-                    'id_officer' => $officerId,
-                    'tanggal_pinjam' => $validated['tanggal_pinjam'],
-                    'tanggal_kembali_rencana' => $validated['tanggal_kembali_rencana'],
-                    'status' => 'Dipinjam',
-                    'catatan' => $validated['catatan'] ?? null,
+            // Create items
+            foreach ($validated['id_buku_items'] as $idBukuItem) {
+                PeminjamanItem::create([
+                    'id_peminjaman' => $peminjaman->id,
+                    'id_buku_item' => $idBukuItem,
+                    'kondisi_pinjam' => 'Baik',
+                    'status_item' => 'Dipinjam',
                 ]);
 
-                // Update buku_item status (trigger handles this, but explicit)
-                BukuItem::where('id', $itemId)->update(['status' => 'Dipinjam']);
-
-                $created[] = $peminjaman;
+                // Update buku_item status
+                BukuItem::where('id', $idBukuItem)->update(['status' => 'Dipinjam']);
             }
 
+            DB::commit();
+
             return response()->json([
-                'message' => count($created) . ' peminjaman berhasil dibuat! Periode: ' . $diffDays . ' hari.',
-                'peminjamans' => $created
+                'message' => 'Peminjaman berhasil dibuat!',
+                'transaction_number' => $peminjaman->transaction_number
             ], 200);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
-            \Log::error('Peminjaman store error: ' . $e->getMessage());
+            DB::rollback();
+            \Log::error('Store peminjaman error: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
+    // =====================================================
+    // RETURN - Process return (partial or full)
+    // =====================================================
     public function returnStore(Request $request)
     {
-        $validated = $request->validate([
-            'id_peminjaman' => 'required|exists:peminjamans,id',
-            'tanggal_kembali_aktual' => 'required|date',
-            'kondisi_kembali' => 'required|in:Baik,Cukup,Rusak,Hilang',
-            'denda_kerusakan' => 'numeric|min:0',
-            'catatan' => 'nullable|string',
-        ]);
+        try {
+            $validated = $request->validate([
+                'id_peminjaman' => 'required|exists:peminjamans,id',
+                'items' => 'required|array|min:1',
+                'items.*.id_item' => 'required|exists:peminjaman_items,id',
+                'items.*.kondisi_kembali' => 'required|in:Baik,Cukup,Rusak,Hilang',
+                'items.*.denda_kerusakan' => 'required|numeric|min:0',
+                'tanggal_kembali_aktual' => 'required|date',
+                'catatan' => 'nullable|string|max:500',
+            ]);
 
-        $peminjaman = Peminjaman::findOrFail($validated['id_peminjaman']);
+            DB::beginTransaction();
 
-        // Hitung denda telat
-        $dueDate = Carbon::parse($peminjaman->tanggal_kembali_rencana);
-        $returnDate = Carbon::parse($validated['tanggal_kembali_aktual']);
-        $daysLate = max(0, $returnDate->diffInDays($dueDate, false));
-        $daysLate = abs($daysLate);
+            $peminjaman = Peminjaman::findOrFail($validated['id_peminjaman']);
+            $today = Carbon::parse($validated['tanggal_kembali_aktual']);
+            $dueDate = Carbon::parse($peminjaman->tanggal_kembali_rencana);
 
-        if ($returnDate->gt($dueDate)) {
-            $dendaTelat = $daysLate * 1000;
-        } else {
-            $dendaTelat = 0;
+            // Calculate late days
+            $daysLate = max(0, $today->diffInDays($dueDate, false) * -1);
+            $dendaPerHari = 1000;
+
+            foreach ($validated['items'] as $itemData) {
+                $item = PeminjamanItem::findOrFail($itemData['id_item']);
+
+                if ($item->status_item !== 'Dipinjam') {
+                    throw new \Exception('Item sudah dikembalikan sebelumnya!');
+                }
+
+                $dendaKeterlambatan = $daysLate * $dendaPerHari;
+                $dendaKerusakan = $itemData['denda_kerusakan'];
+                $totalDendaItem = $dendaKeterlambatan + $dendaKerusakan;
+
+                // Update item
+                $item->update([
+                    'status_item' => 'Dikembalikan',
+                    'tanggal_kembali_aktual' => $validated['tanggal_kembali_aktual'],
+                    'kondisi_kembali' => $itemData['kondisi_kembali'],
+                    'denda_keterlambatan' => $dendaKeterlambatan,
+                    'denda_kerusakan' => $dendaKerusakan,
+                    'total_denda_item' => $totalDendaItem,
+                    'catatan_pengembalian' => $validated['catatan'],
+                ]);
+
+                // Update buku_item status based on condition
+                $newStatus = match($itemData['kondisi_kembali']) {
+                    'Hilang' => 'Hilang',
+                    'Rusak' => 'Reparasi',
+                    default => 'Tersedia'
+                };
+
+                $newKondisi = match($itemData['kondisi_kembali']) {
+                    'Hilang' => 'Hilang',
+                    'Rusak' => 'Rusak',
+                    'Cukup' => 'Baik',
+                    default => 'Baik'
+                };
+
+                BukuItem::where('id', $item->id_buku_item)->update([
+                    'status' => $newStatus,
+                    'kondisi' => $newKondisi
+                ]);
+            }
+
+            DB::commit();
+
+            // Refresh peminjaman to get updated totals
+            $peminjaman->refresh();
+
+            return response()->json([
+                'message' => 'Pengembalian berhasil diproses!',
+                'total_denda' => $peminjaman->total_denda,
+                'days_late' => $daysLate,
+                'items_dikembalikan' => $peminjaman->items_dikembalikan,
+                'status_transaksi' => $peminjaman->status_transaksi
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            \Log::error('Return error: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        $totalDenda = $dendaTelat + ($validated['denda_kerusakan'] ?? 0);
-
-        $pengembalian = Pengembalian::create([
-            'id_peminjaman' => $peminjaman->id,
-            'id_officer' => Auth::id(),
-            'tanggal_kembali_aktual' => $validated['tanggal_kembali_aktual'],
-            'denda_keterlambatan' => $dendaTelat,
-            'denda_kerusakan' => $validated['denda_kerusakan'] ?? 0,
-            'total_denda' => $totalDenda,
-            'kondisi_kembali' => $validated['kondisi_kembali'],
-            'catatan' => $validated['catatan'],
-        ]);
-
-        // Status handled by trigger
-        return response()->json(['message' => 'Pengembalian berhasil!'], 200);
     }
 
+    // =====================================================
+    // EXTEND - Perpanjangan transaksi
+    // =====================================================
     public function extendUpdate(Request $request)
     {
         try {
             $validated = $request->validate([
                 'id_peminjaman' => 'required|exists:peminjamans,id',
                 'tanggal_kembali_rencana_baru' => 'required|date',
-                'biaya' => 'numeric|min:0',
-                'catatan' => 'nullable|string',
+                'catatan' => 'nullable|string|max:500',
             ]);
 
-            $peminjaman = Peminjaman::with('perpanjangans')->findOrFail($validated['id_peminjaman']);
+            DB::beginTransaction();
 
-            // ✅ VALIDATION 1: Peminjaman harus masih aktif
-            if ($peminjaman->status !== 'Dipinjam') {
-                return response()->json([
-                    'error' => 'Peminjaman ini tidak aktif (status: ' . $peminjaman->status . ')'
-                ], 400);
-            }
+            $peminjaman = Peminjaman::findOrFail($validated['id_peminjaman']);
 
-            // ✅ VALIDATION 2: Max 1x perpanjangan per periode
-            $perpanjanganCount = $peminjaman->perpanjangans()->count();
-            if ($perpanjanganCount >= 1) {
-                return response()->json([
-                    'error' => 'Peminjaman ini sudah diperpanjang 1x. Tidak bisa perpanjang lagi pada periode ini.'
-                ], 400);
-            }
-
-            $today = Carbon::today();
-            $newDueDate = Carbon::parse($validated['tanggal_kembali_rencana_baru']);
-
-            // ✅ VALIDATION 3: Tanggal baru harus setelah hari ini
-            if ($newDueDate->lte($today)) {
-                return response()->json([
-                    'error' => 'Tanggal perpanjangan harus setelah hari ini'
-                ], 400);
+            if (!in_array($peminjaman->status_transaksi, ['Dipinjam', 'Diperpanjang'])) {
+                throw new \Exception('Hanya transaksi Dipinjam/Diperpanjang yang bisa diperpanjang!');
             }
 
             $oldDueDate = Carbon::parse($peminjaman->tanggal_kembali_rencana);
-            $maxAllowedDate = $oldDueDate->copy()->addDays(5);
+            $newDueDate = Carbon::parse($validated['tanggal_kembali_rencana_baru']);
+            $today = Carbon::today();
 
-            // ✅ VALIDATION 4: Max 5 hari dari due date lama
-            if ($newDueDate->gt($maxAllowedDate)) {
-                return response()->json([
-                    'error' => 'Perpanjangan maksimal 5 hari dari due date lama (' .
-                        $oldDueDate->format('d/m/Y') . '). Max: ' .
-                        $maxAllowedDate->format('d/m/Y')
-                ], 400);
+            // Validation: Max 5 days extension
+            $extensionDays = $newDueDate->diffInDays($oldDueDate);
+            if ($extensionDays > 5) {
+                throw new \Exception('Perpanjangan maksimal 5 hari!');
             }
 
-            // ✅ CALCULATE DENDA: Jika perpanjang setelah due date
-            $daysLate = 0;
-            $dendaKeterlambatan = 0;
-
-            if ($today->gt($oldDueDate)) {
-                $daysLate = $today->diffInDays($oldDueDate);
-                $dendaKeterlambatan = $daysLate * 1000; // Rp 1.000/hari
-            }
+            // Calculate late fee if any
+            $daysLate = max(0, $today->diffInDays($oldDueDate, false) * -1);
+            $biaya = $daysLate * 1000;
 
             // Create perpanjangan record
-            $perpanjangan = Perpanjangan::create([
+            Perpanjangan::create([
                 'id_peminjaman' => $peminjaman->id,
                 'id_officer' => Auth::id(),
-                'tanggal_perpanjangan' => $today->toDateString(),
-                'due_date_lama' => $peminjaman->tanggal_kembali_rencana,
-                'due_date_baru' => $validated['tanggal_kembali_rencana_baru'],
-                'biaya' => $dendaKeterlambatan,
-                'catatan' => $validated['catatan'] .
-                    ($dendaKeterlambatan > 0 ?
-                        " | Denda keterlambatan: Rp " . number_format($dendaKeterlambatan, 0, ',', '.') .
-                        " ({$daysLate} hari x Rp 1.000)" : ''),
+                'tanggal_perpanjangan' => $today,
+                'due_date_lama' => $oldDueDate,
+                'due_date_baru' => $newDueDate,
+                'hari_perpanjangan' => $extensionDays,
+                'biaya' => $biaya,
+                'catatan' => $validated['catatan'],
             ]);
 
-            // Update peminjaman due date (trigger will handle, but explicit is better)
+            // Update peminjaman due date and status
             $peminjaman->update([
-                'tanggal_kembali_rencana' => $validated['tanggal_kembali_rencana_baru']
+                'tanggal_kembali_rencana' => $newDueDate,
+                'status_transaksi' => 'Diperpanjang',
             ]);
+
+            DB::commit();
 
             return response()->json([
-                'message' => 'Perpanjangan berhasil!' .
-                    ($dendaKeterlambatan > 0 ?
-                        ' Denda keterlambatan: Rp ' . number_format($dendaKeterlambatan, 0, ',', '.') : ''),
-                'perpanjangan' => $perpanjangan,
-                'denda' => $dendaKeterlambatan,
-                'days_late' => $daysLate,
+                'message' => 'Perpanjangan berhasil diproses!',
+                'new_due_date' => $newDueDate->format('d M Y'),
+                'biaya' => $biaya,
+                'days_late' => $daysLate
             ], 200);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
-            \Log::error('Perpanjangan error: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
+            DB::rollback();
+            \Log::error('Extend error: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
+    // =====================================================
+    // DELETE SELECTED - Bulk delete
+    // =====================================================
     public function destroySelected(Request $request)
     {
         try {
@@ -632,27 +376,146 @@ class PeminjamanController extends Controller
                 return response()->json(['error' => 'Hanya Admin yang bisa hapus'], 403);
             }
 
+            DB::beginTransaction();
+
             $peminjamans = Peminjaman::whereIn('id', $ids)->get();
 
             foreach ($peminjamans as $peminjaman) {
-                if ($peminjaman->status == 'Dipinjam') {
-                    BukuItem::where('id', $peminjaman->id_buku_item)
-                        ->update(['status' => 'Tersedia']);
+                // Return all items to Tersedia
+                foreach ($peminjaman->items as $item) {
+                    if ($item->status_item == 'Dipinjam') {
+                        BukuItem::where('id', $item->id_buku_item)->update([
+                            'status' => 'Tersedia'
+                        ]);
+                    }
                 }
 
-                $peminjaman->pengembalian()->delete();
-                $peminjaman->perpanjangans()->delete();
+                $peminjaman->delete(); // Cascade will handle items and perpanjangans
             }
 
-            Peminjaman::whereIn('id', $ids)->delete();
+            DB::commit();
 
             return response()->json([
                 'message' => count($ids) . ' peminjaman berhasil dihapus'
-            ]);
+            ], 200);
 
         } catch (\Exception $e) {
-            \Log::error('destroySelected error: ' . $e->getMessage());
+            DB::rollback();
+            \Log::error('Delete error: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    // =====================================================
+    // HELPER METHODS - DataTables & Eligibility
+    // =====================================================
+    public function searchMemberDatatable(Request $request)
+    {
+        $query = User::where('role', 'Member');
+
+        if ($search = $request->input('search.value')) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%$search%")
+                    ->orWhere('email', 'like', "%$search%");
+            });
+        }
+
+        $total = $query->count();
+
+        $members = $query->skip($request->input('start', 0))
+            ->take($request->input('length', 10))
+            ->get();
+
+        $data = $members->map(function($member) {
+            $activeBorrows = PeminjamanItem::whereHas('peminjaman', function($q) use ($member) {
+                $q->where('id_member', $member->id)->whereIn('status_transaksi', ['Dipinjam', 'Diperpanjang']);
+            })->where('status_item', 'Dipinjam')->count();
+
+            return [
+                'id' => $member->id,
+                'name' => $member->name,
+                'email' => $member->email,
+                'pinjaman_aktif' => $activeBorrows,
+                'can_borrow' => $activeBorrows < 2,
+                'status' => $activeBorrows < 2 ? 'Available' : 'Full',
+                'status_color' => $activeBorrows < 2 ? 'success' : 'danger',
+            ];
+        });
+
+        return response()->json([
+            'draw' => intval($request->input('draw')),
+            'recordsTotal' => $total,
+            'recordsFiltered' => $total,
+            'data' => $data
+        ]);
+    }
+
+    public function checkMemberEligibility($memberId)
+    {
+        $activeCount = PeminjamanItem::whereHas('peminjaman', function($q) use ($memberId) {
+            $q->where('id_member', $memberId)->whereIn('status_transaksi', ['Dipinjam', 'Diperpanjang']);
+        })->where('status_item', 'Dipinjam')->count();
+
+        return response()->json([
+            'eligible' => $activeCount < 2,
+            'active_borrows' => $activeCount,
+            'remaining_slots' => max(0, 2 - $activeCount),
+            'message' => $activeCount >= 2 ? 'Member sudah mencapai limit peminjaman!' : 'Member eligible'
+        ]);
+    }
+
+    public function searchBukuDatatable(Request $request)
+    {
+        $query = Buku::with(['penerbit', 'kategori']);
+
+        if ($search = $request->input('search.value')) {
+            $query->where(function($q) use ($search) {
+                $q->where('judul', 'like', "%$search%")
+                    ->orWhere('pengarang', 'like', "%$search%");
+            });
+        }
+
+        // Filter by tahun_terbit if provided (from column search)
+        if ($tahun = $request->input('columns.3.search.value')) {
+            $query->where('tahun_terbit', $tahun);
+        }
+
+        $total = $query->count();
+
+        $bukus = $query->skip($request->input('start', 0))
+            ->take($request->input('length', 10))
+            ->get();
+
+        $data = $bukus->map(function($buku) {
+            $available = BukuItem::where('id_buku', $buku->id)
+                ->where('status', 'Tersedia')
+                ->where('kondisi', 'Baik')
+                ->count();
+
+            return [
+                'id' => $buku->id,
+                'judul' => $buku->judul,
+                'pengarang' => $buku->pengarang,
+                'tahun_terbit' => $buku->tahun_terbit,
+                'eksemplar_tersedia' => $available,
+            ];
+        });
+
+        return response()->json([
+            'draw' => intval($request->input('draw')),
+            'recordsTotal' => $total,
+            'recordsFiltered' => $total,
+            'data' => $data
+        ]);
+    }
+
+    public function availableEksemplarByBuku($id_buku)
+    {
+        $items = BukuItem::where('id_buku', $id_buku)
+            ->where('status', 'Tersedia')
+            ->where('kondisi', 'Baik')
+            ->get(['id', 'barcode', 'kondisi', 'status', 'sumber']);
+
+        return response()->json($items);
     }
 }

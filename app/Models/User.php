@@ -47,6 +47,11 @@ class User extends Authenticatable
         return $this->isOnline() ? 'Online' : 'Offline';
     }
 
+    public function peminjamans()
+    {
+        return $this->hasMany(Peminjaman::class, 'id_member');
+    }
+
 
 
     /**

@@ -6,6 +6,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\IsAdmin;
 use App\Http\Middleware\IsOfficerOrAdmin;
 use App\Http\Middleware\ActivityMiddleware;
+use App\Http\Middleware\CheckRole;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,8 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(ActivityMiddleware::class);
 
         $middleware->alias([
+            //  Middleware LAMA (tetap dipakai)
             'isAdmin' => \App\Http\Middleware\IsAdmin::class,
-            'isOfficerOrAdmin' => \App\Http\Middleware\IsOfficerOrAdmin::class
+            'isOfficerOrAdmin' => \App\Http\Middleware\IsOfficerOrAdmin::class,
+
+            //  Middleware BARU (untuk registration system)
+            'role' => \App\Http\Middleware\CheckRole::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

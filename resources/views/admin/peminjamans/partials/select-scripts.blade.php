@@ -1,20 +1,23 @@
 <script>
     $(document).ready(function() {
-
+        // ===== GLOBAL VARS =====
         let selectedBooksData = {};
         let currentBukuId = null;
         let bukuTable = null;
         let memberTable = null;
         let selectedMember = null;
 
-
+        // ===== HELPER FUNCTIONS =====
         function updateSelectedBooksDisplay() {
             const container = $('#selected-books-container');
             const list = $('#selected-books-list');
+            const btnAddBuku = $('#btn-add-buku');
 
             const bukuIds = Object.keys(selectedBooksData);
+
             if (bukuIds.length === 0) {
                 container.hide();
+                btnAddBuku.prop('disabled', false);
                 return;
             }
 
@@ -50,6 +53,31 @@
 
             list.html(html);
             $('#total-eksemplar-count').text(totalEksemplar);
+
+            // Update member badge and disable button if max reached
+            if (selectedMember) {
+                const currentActive = selectedMember.pinjaman_aktif;
+                const maxAllowed = 2 - currentActive; // Max buku yang bisa dipilih di transaksi ini
+
+                // Show badge: "X/2 Aktif, Y Slot Tersisa"
+                // Y = maxAllowed - totalEksemplar (sisa slot untuk transaksi ini)
+                const remainingForTransaction = Math.max(0, maxAllowed - totalEksemplar);
+
+                $('#selected-member-pinjaman').text(
+                    `${currentActive}/2 Aktif, ${remainingForTransaction} Slot Tersisa`
+                );
+
+                // Disable add book button if already selected max for this transaction
+                // Example: Member punya 0 aktif, max bisa pilih 2 buku
+                // Setelah pilih 2 buku, button disabled
+                if (totalEksemplar >= maxAllowed) {
+                    btnAddBuku.prop('disabled', true);
+                    btnAddBuku.attr('title', 'Sudah mencapai limit untuk transaksi ini');
+                } else {
+                    btnAddBuku.prop('disabled', false);
+                    btnAddBuku.attr('title', '');
+                }
+            }
         }
 
         $(document).on('click', '.btn-remove-buku', function() {
@@ -58,13 +86,21 @@
             updateSelectedBooksDisplay();
         });
 
-
+        // ===== MEMBER MODAL =====
         $('#modalSelectMember').on('shown.bs.modal', function () {
             if (!memberTable) {
                 memberTable = $('#member-table').DataTable({
-                    ajax: '{{ route("admin.peminjamans.searchMemberDatatable") }}',
+                    ajax: {
+                        url: '{{ route("admin.peminjamans.searchMemberDatatable") }}',
+                        type: 'GET',
+                        error: function(xhr, error, thrown) {
+                            console.error('Member DataTables Ajax Error:', xhr.responseText);
+                            alert('Error loading members: ' + xhr.status);
+                        }
+                    },
                     serverSide: true,
                     processing: true,
+                    searching: true,
                     columns: [
                         { data: 'id' },
                         { data: 'name' },
@@ -93,21 +129,20 @@
                             }
                         }
                     ],
-                    searching: false,
                     paging: true,
                     pageLength: 10,
                 });
             }
         });
 
-
+        // Member search
         $('#search-member-modal').on('input', debounce(function () {
             if (memberTable) {
                 memberTable.search(this.value).draw();
             }
         }, 300));
 
-
+        // ===== PILIH MEMBER =====
         $(document).on('click', '.btn-pilih-member', async function () {
             const memberId = $(this).data('id');
             const memberName = $(this).data('name');
@@ -140,6 +175,9 @@
                 $('#btn-select-member').hide();
                 $('#selected-member-display').show();
 
+                // Update button state based on selected books
+                updateSelectedBooksDisplay();
+
                 $('#modalSelectMember').modal('hide');
                 $('#modalNewPeminjaman').modal('show');
 
@@ -149,15 +187,18 @@
             }
         });
 
-
+        // Remove member
         $('#btn-remove-member').on('click', function() {
             selectedMember = null;
+            selectedBooksData = {}; // Clear selected books too
             $('#selected-member-id').val('');
             $('#selected-member-display').hide();
             $('#btn-select-member').show();
+            $('#selected-books-container').hide();
+            $('#btn-add-buku').prop('disabled', false);
         });
 
-
+        // ===== BUKU MODAL =====
         $('#modalSelectBuku').on('shown.bs.modal', function () {
             $('#section-pilih-judul').show();
             $('#section-pilih-eksemplar').hide();
@@ -168,12 +209,13 @@
                         url: '{{ route("admin.peminjamans.searchBukuDatatable") }}',
                         type: 'GET',
                         error: function(xhr, error, thrown) {
-                            console.error('DataTables Ajax Error:', xhr.responseText);
+                            console.error('Buku DataTables Ajax Error:', xhr.responseText);
                             alert('Error loading books: ' + xhr.status);
                         }
                     },
                     serverSide: true,
                     processing: true,
+                    searching: true,
                     columns: [
                         { data: 'id' },
                         { data: 'judul' },
@@ -188,40 +230,47 @@
                             }
                         }
                     ],
-                    searching: false,
                     paging: true,
                     pageLength: 10,
                 });
             }
         });
 
-
+        // Buku search
         $('#search-buku-modal').on('input', debounce(function () {
             if (bukuTable) {
                 bukuTable.search(this.value).draw();
             }
         }, 300));
 
-
-        $('#btn-filter-buku').on('click', function () {
+        // Filter dropdown toggle
+        $('#btn-filter-buku').on('click', function (e) {
+            e.stopPropagation();
             $('#filter-dropdown-buku').toggleClass('show');
         });
 
+        // Close dropdown on click outside
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('#btn-filter-buku, #filter-dropdown-buku').length) {
+                $('#filter-dropdown-buku').removeClass('show');
+            }
+        });
 
+        // Apply filter tahun
         $('#btn-apply-filter-buku').on('click', function () {
-            const tahun = $('#filter-tahun').val();
+            const tahun = $('#filter-tahun').val().trim();
+
             if (bukuTable) {
-                // Column 3 is tahun_terbit
                 if (tahun) {
-                    bukuTable.column(3).search(tahun).draw();
+                    bukuTable.column(3).search(tahun, false, false).draw();
                 } else {
-                    bukuTable.column(3).search('').draw();
+                    bukuTable.column(3).search('', false, false).draw();
                 }
             }
             $('#filter-dropdown-buku').removeClass('show');
         });
 
-
+        // ===== PILIH BUKU =====
         $(document).on('click', '.btn-pilih-buku', async function () {
             const bukuId = $(this).data('id');
             const judul = $(this).data('judul');
@@ -266,14 +315,14 @@
             }
         });
 
-
+        // Back to judul
         $('#btn-back-to-judul').on('click', function() {
             $('#section-pilih-eksemplar').hide();
             $('#section-pilih-judul').show();
             currentBukuId = null;
         });
 
-
+        // Select all eksemplar
         $('#select-all-eksemplar').on('change', function() {
             $('.select-eksemplar').prop('checked', this.checked);
             updateSelectedEksemplarCount();
@@ -288,7 +337,7 @@
             $('#selected-eksemplar-count').text(count);
         }
 
-
+        // Apply range
         $('#btn-apply-range').on('click', function() {
             const rangeInput = $('#range-barcode').val().trim();
             if (!rangeInput) return alert('Masukkan range barcode!');
@@ -314,7 +363,7 @@
             updateSelectedEksemplarCount();
         });
 
-
+        // ===== KONFIRMASI EKSEMPLAR =====
         $('#btn-confirm-eksemplar').on('click', function() {
             const selectedEks = [];
             const selectedEksDetails = [];
@@ -334,6 +383,18 @@
                 return alert('Pilih minimal 1 eksemplar!');
             }
 
+            // Check if exceeds member limit
+            if (selectedMember) {
+                const totalEksemplarNow = Object.values(selectedBooksData).reduce((sum, data) => sum + data.eksemplar.length, 0);
+                const totalAfterAdd = totalEksemplarNow + selectedEks.length;
+                const maxAllowed = 2 - selectedMember.pinjaman_aktif;
+
+                if (totalAfterAdd > maxAllowed) {
+                    alert(`Tidak bisa menambah! Member hanya bisa meminjam maksimal ${maxAllowed} eksemplar dalam transaksi ini.`);
+                    return;
+                }
+            }
+
             const judul = $('#selected-judul-text').text();
             selectedBooksData[currentBukuId] = {
                 judul: judul,
@@ -351,7 +412,7 @@
             currentBukuId = null;
         });
 
-
+        // ===== SUBMIT NEW PEMINJAMAN =====
         $('#form-new-peminjaman').on('submit', async function(e) {
             e.preventDefault();
 
@@ -369,8 +430,10 @@
                 return alert('Pilih minimal 1 eksemplar dari buku!');
             }
 
-            if (allEksemplarIds.length > selectedMember.remaining_slots) {
-                alert(`Member hanya bisa meminjam ${selectedMember.remaining_slots} eksemplar lagi (sudah ada ${selectedMember.pinjaman_aktif} pinjaman aktif)`);
+            const maxAllowed = 2 - selectedMember.pinjaman_aktif;
+
+            if (allEksemplarIds.length > maxAllowed) {
+                alert(`Member hanya bisa meminjam maksimal ${maxAllowed} eksemplar dalam transaksi ini (sudah ada ${selectedMember.pinjaman_aktif} pinjaman aktif)`);
                 return;
             }
 
@@ -389,7 +452,7 @@
                     id_buku_items: allEksemplarIds,
                     tanggal_pinjam: $('[name="tanggal_pinjam"]').val(),
                     tanggal_kembali_rencana: $('[name="tanggal_kembali_rencana"]').val(),
-                    catatan: $('[name="catatan"]').val()
+                    catatan: $('textarea[name="catatan"]').val()
                 };
 
                 const res = await fetch('{{ route("admin.peminjamans.store") }}', {
@@ -408,15 +471,23 @@
                 $('#modalNewPeminjaman').modal('hide');
                 alert(data.message || 'Peminjaman berhasil dibuat!');
 
-
+                // Reset
                 selectedMember = null;
                 selectedBooksData = {};
                 $('#form-new-peminjaman')[0].reset();
                 $('#selected-member-display').hide();
                 $('#btn-select-member').show();
                 $('#selected-books-container').hide();
+                $('#btn-add-buku').prop('disabled', false);
 
-                location.reload();
+                // Auto refresh using global function
+                if (typeof window.fetchPeminjamans === 'function') {
+                    console.log('Calling fetchPeminjamans after create'); // Debug
+                    await window.fetchPeminjamans();
+                } else {
+                    console.log('fetchPeminjamans not found, reloading page'); // Debug
+                    location.reload();
+                }
 
             } catch (err) {
                 console.error('Submit error:', err);
@@ -424,78 +495,7 @@
             }
         });
 
-
-        $('#form-return-peminjaman').on('submit', async function(e) {
-            e.preventDefault();
-
-            const formData = {
-                id_peminjaman: $('#return-id-peminjaman').val(),
-                tanggal_kembali_aktual: $('input[name="tanggal_kembali_aktual"]').val(),
-                kondisi_kembali: $('select[name="kondisi_kembali"]').val(),
-                denda_kerusakan: $('input[name="denda_kerusakan"]').val(),
-                catatan: $('#modalReturnPeminjaman textarea[name="catatan"]').val()
-            };
-
-            try {
-                const res = await fetch('{{ route("admin.peminjamans.return") }}', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(formData)
-                });
-
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Failed');
-
-                $('#modalReturnPeminjaman').modal('hide');
-                alert(data.message || 'Pengembalian berhasil!');
-                location.reload();
-
-            } catch (err) {
-                console.error('Return error:', err);
-                alert(err.message || 'Error pengembalian');
-            }
-        });
-
-
-        $('#form-extend-peminjaman').on('submit', async function(e) {
-            e.preventDefault();
-
-            const formData = {
-                id_peminjaman: $('#extend-id-peminjaman').val(),
-                tanggal_kembali_rencana_baru: $('input[name="tanggal_kembali_rencana_baru"]').val(),
-                biaya: $('input[name="biaya"]').val(),
-                catatan: $('#modalExtendPeminjaman textarea[name="catatan"]').val()
-            };
-
-            try {
-                const res = await fetch('{{ route("admin.peminjamans.extend") }}', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(formData)
-                });
-
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.message || 'Failed');
-
-                $('#modalExtendPeminjaman').modal('hide');
-                alert(data.message || 'Perpanjangan berhasil!');
-                location.reload();
-
-            } catch (err) {
-                console.error('Extend error:', err);
-                alert(err.message || 'Error perpanjangan');
-            }
-        });
-
-
+        // Debounce utility
         function debounce(func, wait) {
             let timeout;
             return function(...args) {

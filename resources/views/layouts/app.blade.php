@@ -166,11 +166,26 @@
                 </a>
             </li>
 
+            <!-- 8. Registrasi -->
+            <li>
+                <a href="{{ route('registration.create') }}" class="nav-link {{ request()->is('register*') ? 'active' : '' }}">
+                    <i class="fas fa-user-plus me-2"></i> Daftar Member
+                </a>
+            </li>
+
             <!-- ✅ Khusus Admin & Officer -->
             @if(Auth::check() && in_array(Auth::user()->role, ['Admin','Officer']))
                 <li class="mt-3">
                     <hr class="border-secondary">
                 </li>
+
+                <li>
+                    <a href="{{ route('admin.registrations.index') }}"
+                       class="nav-link {{ request()->is('admin/registrations*') ? 'active' : '' }}">
+                        <i class="bi bi-person-plus-fill me-2"></i> Pendaftaran Member
+                    </a>
+                </li>
+
                 <li>
                     <a href="{{ route('admin.users') }}"
                        class="nav-link {{ request()->is('admin/users*') ? 'active' : '' }}">
