@@ -133,7 +133,8 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
         Route::post('peminjamans', [PeminjamanController::class, 'store'])->name('peminjamans.store');
 
         // ✅ SHOW ROUTE - MUST BE LAST!
-        Route::get('peminjamans/{id}', [PeminjamanController::class, 'show'])->name('peminjamans.show')->where('id', '[0-9]+');
+        Route::get('peminjamans/{id}', [PeminjamanController::class, 'show'])
+            ->name('peminjamans.show');
 
         // =============================
         // REGISTRATION MANAGEMENT

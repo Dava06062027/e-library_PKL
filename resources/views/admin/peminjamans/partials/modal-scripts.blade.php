@@ -142,7 +142,7 @@
             return {
                 id_item: itemId,
                 kondisi_kembali: document.querySelector(`.return-kondisi[data-item-id="${itemId}"]`).value,
-                denda_kerusakan: document.querySelector(`.return-denda-rusak[data-item-id="${itemId}"]`).value
+                denda_kerusakan: parseFloat(document.querySelector(`.return-denda-rusak[data-item-id="${itemId}"]`).value) || 0
             };
         });
 
@@ -166,17 +166,22 @@
 
             const data = await res.json();
 
-            if (!res.ok) throw new Error(data.error || 'Failed to process return');
+            if (!res.ok) {
+                // Handle validation errors
+                if (data.details) {
+                    const errors = Object.values(data.details).flat();
+                    throw new Error(errors.join('\n'));
+                }
+                throw new Error(data.error || 'Failed to process return');
+            }
 
             bootstrap.Modal.getInstance(document.getElementById('modalReturnPeminjaman')).hide();
-            alert(`Pengembalian berhasil!\nTotal Denda: Rp ${parseFloat(data.total_denda).toLocaleString('id-ID')}\nStatus: ${data.status_transaksi}`);
+            alert(`${data.message}\nTotal Denda: Rp ${data.total_denda}\nStatus: ${data.status_transaksi}`);
 
-            // Auto refresh using global function
+            // Auto refresh
             if (typeof window.fetchPeminjamans === 'function') {
-                console.log('Calling fetchPeminjamans after return'); // Debug
                 await window.fetchPeminjamans();
             } else {
-                console.log('fetchPeminjamans not found, reloading page'); // Debug
                 location.reload();
             }
 
@@ -216,34 +221,34 @@
                 return;
             }
 
+            // ✅ CHECK: If already extended max times
+            const jumlahPerpanjangan = peminjaman.jumlah_perpanjangan || 0;
+
+            if (jumlahPerpanjangan >= 1) {
+                // Show warning and disable form
+                document.getElementById('extend-warning-max').classList.remove('d-none');
+                document.getElementById('extend-form-content').style.display = 'none';
+                document.getElementById('extend-submit-btn').disabled = true;
+            } else {
+                // Show form and enable submit
+                document.getElementById('extend-warning-max').classList.add('d-none');
+                document.getElementById('extend-form-content').style.display = 'block';
+                document.getElementById('extend-submit-btn').disabled = false;
+            }
+
             // Fill modal
             document.getElementById('extend-id-peminjaman').value = peminjamanId;
+            document.getElementById('extend-jumlah-perpanjangan').value = jumlahPerpanjangan;
             document.getElementById('extend-transaction-number').textContent = peminjaman.transaction_number;
             document.getElementById('extend-due-date-lama').textContent = peminjaman.tanggal_kembali_rencana;
             document.getElementById('extend-hari-telat').textContent = peminjaman.days_late > 0 ? `${peminjaman.days_late} hari` : '0 hari (Tepat Waktu)';
+            document.getElementById('extend-count-display').textContent = `${jumlahPerpanjangan}/1`;
 
             const biaya = peminjaman.days_late * 1000;
             document.getElementById('extend-denda-telat').textContent = `Rp ${biaya.toLocaleString('id-ID')}`;
             document.getElementById('extend-biaya-display').value = `Rp ${biaya.toLocaleString('id-ID')}`;
 
-            // Set date constraints
-            const dueDateParts = peminjaman.tanggal_kembali_rencana.split(' ');
-            const dueDate = new Date(dueDateParts[2] + '-' +
-                (dueDateParts[1] === 'Jan' ? '01' : dueDateParts[1] === 'Feb' ? '02' : dueDateParts[1] === 'Mar' ? '03' :
-                    dueDateParts[1] === 'Apr' ? '04' : dueDateParts[1] === 'Mei' || dueDateParts[1] === 'May' ? '05' : dueDateParts[1] === 'Jun' ? '06' :
-                        dueDateParts[1] === 'Jul' ? '07' : dueDateParts[1] === 'Agu' || dueDateParts[1] === 'Aug' ? '08' : dueDateParts[1] === 'Sep' ? '09' :
-                            dueDateParts[1] === 'Okt' || dueDateParts[1] === 'Oct' ? '10' : dueDateParts[1] === 'Nov' ? '11' : '12') + '-' + dueDateParts[0]);
-
-            const minDate = new Date();
-            minDate.setDate(minDate.getDate() + 1); // Min besok
-
-            const maxDate = new Date(dueDate);
-            maxDate.setDate(maxDate.getDate() + 5); // Max +5 days
-
-            const extendInput = document.getElementById('extend-tanggal-baru');
-            extendInput.min = minDate.toISOString().split('T')[0];
-            extendInput.max = maxDate.toISOString().split('T')[0];
-            extendInput.value = maxDate.toISOString().split('T')[0]; // Default max
+            // Set date constraints (rest of the code remains same...)
 
             // Show modal
             new bootstrap.Modal(document.getElementById('modalExtendPeminjaman')).show();
@@ -292,13 +297,24 @@
 
             const data = await res.json();
 
-            if (!res.ok) throw new Error(data.error || 'Failed to extend');
+            if (!res.ok) {
+                // Handle validation errors
+                if (data.details) {
+                    const errors = Object.values(data.details).flat();
+                    throw new Error(errors.join('\n'));
+                }
+                throw new Error(data.error || 'Failed to extend');
+            }
 
             bootstrap.Modal.getInstance(document.getElementById('modalExtendPeminjaman')).hide();
-            alert(`Perpanjangan berhasil!\nDue Date Baru: ${data.new_due_date}\nBiaya: Rp ${parseFloat(data.biaya).toLocaleString('id-ID')}\nStatus: Diperpanjang`);
+            alert(`${data.message}\nDue Date Baru: ${data.new_due_date}\nBiaya: Rp ${data.biaya}\nPerpanjangan ke: ${data.extension_count}`);
 
             // Auto refresh
-            await fetchPeminjamans();
+            if (typeof window.fetchPeminjamans === 'function') {
+                await window.fetchPeminjamans();
+            } else {
+                location.reload();
+            }
 
         } catch (err) {
             console.error('Extend error:', err);

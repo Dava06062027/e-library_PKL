@@ -23,12 +23,14 @@ class Peminjaman extends Model
         'items_dikembalikan',
         'total_denda',
         'catatan',
+        'jumlah_perpanjangan', // ✅ ADD THIS
     ];
 
     protected $casts = [
         'tanggal_pinjam' => 'date',
         'tanggal_kembali_rencana' => 'date',
         'total_denda' => 'decimal:2',
+        'jumlah_perpanjangan' => 'integer', // ✅ ADD THIS
     ];
 
     // Relationships
@@ -52,12 +54,13 @@ class Peminjaman extends Model
         return $this->hasMany(Perpanjangan::class, 'id_peminjaman');
     }
 
-    // Helper Methods
+
     public function getStatusBadgeClass()
     {
         return match($this->status_transaksi) {
-            'Aktif' => 'bg-warning text-dark',
-            'Selesai' => 'bg-success',
+            'Dipinjam' => 'bg-warning text-dark',
+            'Diperpanjang' => 'bg-info text-dark',
+            'Dikembalikan' => 'bg-success',
             'Dibatalkan' => 'bg-secondary',
             default => 'bg-primary',
         };
@@ -65,7 +68,9 @@ class Peminjaman extends Model
 
     public function getDaysLateAttribute()
     {
-        if ($this->status_transaksi !== 'Aktif') return 0;
+        if (!in_array($this->status_transaksi, ['Dipinjam', 'Diperpanjang'])) {
+            return 0;
+        }
 
         $dueDate = Carbon::parse($this->tanggal_kembali_rencana);
         $today = Carbon::today();
@@ -81,5 +86,12 @@ class Peminjaman extends Model
     public function calculateLateFee()
     {
         return $this->days_late * 1000; // Rp 1,000 per hari per item
+    }
+
+
+    public function canExtend()
+    {
+        return in_array($this->status_transaksi, ['Dipinjam', 'Diperpanjang'])
+            && ($this->jumlah_perpanjangan ?? 0) < 1;
     }
 }

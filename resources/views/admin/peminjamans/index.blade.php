@@ -182,11 +182,9 @@
 
 @push('scripts')
     <script>
-        // ✅ DEFINISIKAN FUNCTION DI GLOBAL SCOPE DULU
-        window.fetchPeminjamans = null; // Deklarasi early
 
         (function(){
-            // DOM Elements
+
             const searchInput = document.getElementById('search-peminjaman');
             const selectAll = document.getElementById('select-all');
             const btnReturn = document.getElementById('btn-return-peminjaman');
@@ -195,8 +193,12 @@
             const btnRefresh = document.getElementById('btn-refresh');
             const btnFilter = document.getElementById('btn-filter');
             const filterDropdown = document.getElementById('filter-dropdown');
+            const peminjamansRows = document.getElementById('peminjamans-rows');
+            const paginationContainer = document.getElementById('pagination');
 
-            // Filter state
+            // =====================================================
+            // FILTER STATE
+            // =====================================================
             let currentFilters = {
                 search: '',
                 status: '',
@@ -204,116 +206,184 @@
                 keterlambatan: ''
             };
 
-            // Debounce utility
+            // =====================================================
+            // DEBOUNCE UTILITY
+            // =====================================================
             function debounce(fn, delay = 300) {
                 let timeout;
                 return function(...args) {
                     clearTimeout(timeout);
-                    timeout = setTimeout(() => fn(...args), delay);
+                    timeout = setTimeout(() => fn.apply(this, args), delay);
                 };
             }
 
-            // ✅ DEFINISIKAN FUNCTION DI DALAM IIFE
+            // =====================================================
+            // ✅ FIXED FETCH FUNCTION
+            // =====================================================
             async function fetchPeminjamans(url = "{{ route('admin.peminjamans.index') }}") {
                 try {
+                    // Build query params
                     const params = new URLSearchParams();
-
                     if (currentFilters.search) params.append('search', currentFilters.search);
                     if (currentFilters.status) params.append('status', currentFilters.status);
                     if (currentFilters.tanggal) params.append('tanggal', currentFilters.tanggal);
                     if (currentFilters.keterlambatan) params.append('keterlambatan', currentFilters.keterlambatan);
 
+                    // Construct full URL
                     const fullUrl = url.includes('?') ? `${url}&${params}` : `${url}?${params}`;
 
+                    console.log('Fetching:', fullUrl); // Debug
+
+                    // Fetch with proper headers
                     const res = await fetch(fullUrl, {
+                        method: 'GET',
                         headers: {
                             'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Content-Type': 'application/json'
                         }
                     });
 
-                    if (!res.ok) throw new Error('Network response was not ok');
-
-                    const html = await res.text();
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-
-                    const newRows = doc.querySelector('#peminjamans-rows');
-                    const newPagination = doc.querySelector('#pagination');
-
-                    if (newRows) {
-                        document.getElementById('peminjamans-rows').innerHTML = newRows.innerHTML;
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
                     }
 
-                    if (newPagination) {
-                        document.getElementById('pagination').innerHTML = newPagination.innerHTML;
+                    // ✅ Parse JSON response
+                    const data = await res.json();
+                    console.log('Response data:', data); // Debug
+
+                    // ✅ Update DOM with returned HTML
+                    if (data.rows) {
+                        peminjamansRows.innerHTML = data.rows;
                     }
 
+                    if (data.pagination) {
+                        paginationContainer.innerHTML = data.pagination;
+                    }
+
+                    // Re-attach event listeners
                     attachRowHandlers();
                     updateButtonStates();
 
                 } catch (err) {
                     console.error('Fetch error:', err);
-                    document.getElementById('peminjamans-rows').innerHTML =
-                        '<tr><td colspan="8" class="text-center text-danger py-4">Error loading data. Please refresh.</td></tr>';
+                    peminjamansRows.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
+                        <p class="mt-2 mb-0">Error loading data: ${err.message}</p>
+                        <button onclick="location.reload()" class="btn btn-sm btn-primary mt-2">
+                            Reload Page
+                        </button>
+                    </td>
+                </tr>
+            `;
                 }
             }
 
-            // ✅ ASSIGN KE WINDOW OBJECT DI DALAM IIFE
+            // ✅ Expose to window for external access
             window.fetchPeminjamans = fetchPeminjamans;
 
-            // Search handler
-            searchInput.addEventListener('input', debounce(function() {
-                currentFilters.search = this.value.trim();
-                fetchPeminjamans();
-            }, 300));
+            // =====================================================
+            // SEARCH HANDLER
+            // =====================================================
+            if (searchInput) {
+                searchInput.addEventListener('input', debounce(function() {
+                    currentFilters.search = this.value.trim();
+                    console.log('Search triggered:', currentFilters.search); // Debug
+                    fetchPeminjamans();
+                }, 300));
+            }
 
-            // Filter dropdown toggle
-            btnFilter.addEventListener('click', function(e) {
-                e.stopPropagation();
-                filterDropdown.classList.toggle('show');
-            });
+            // =====================================================
+            // FILTER HANDLERS
+            // =====================================================
+            if (btnFilter && filterDropdown) {
+                // Toggle dropdown
+                btnFilter.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    filterDropdown.classList.toggle('show');
+                });
 
-            // Close dropdown when clicking outside
-            document.addEventListener('click', function(e) {
-                if (!filterDropdown.contains(e.target) && e.target !== btnFilter) {
-                    filterDropdown.classList.remove('show');
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!filterDropdown.contains(e.target) && e.target !== btnFilter) {
+                        filterDropdown.classList.remove('show');
+                    }
+                });
+
+                // Apply filters
+                const btnApplyFilter = document.getElementById('btn-apply-filter');
+                if (btnApplyFilter) {
+                    btnApplyFilter.addEventListener('click', function() {
+                        currentFilters.status = document.getElementById('filter-status').value;
+                        currentFilters.tanggal = document.getElementById('filter-tanggal').value;
+                        currentFilters.keterlambatan = document.getElementById('filter-keterlambatan').value;
+
+                        console.log('Filters applied:', currentFilters); // Debug
+                        fetchPeminjamans();
+                        filterDropdown.classList.remove('show');
+                    });
                 }
-            });
 
-            // Apply filters
-            document.getElementById('btn-apply-filter').addEventListener('click', function() {
-                currentFilters.status = document.getElementById('filter-status').value;
-                currentFilters.tanggal = document.getElementById('filter-tanggal').value;
-                currentFilters.keterlambatan = document.getElementById('filter-keterlambatan').value;
+                // Clear filters
+                const btnClearFilter = document.getElementById('btn-clear-filter');
+                if (btnClearFilter) {
+                    btnClearFilter.addEventListener('click', function() {
+                        document.getElementById('filter-status').value = '';
+                        document.getElementById('filter-tanggal').value = '';
+                        document.getElementById('filter-keterlambatan').value = '';
 
-                fetchPeminjamans();
-                filterDropdown.classList.remove('show');
-            });
+                        currentFilters.status = '';
+                        currentFilters.tanggal = '';
+                        currentFilters.keterlambatan = '';
 
-            // Clear filters
-            document.getElementById('btn-clear-filter').addEventListener('click', function() {
-                document.getElementById('filter-status').value = '';
-                document.getElementById('filter-tanggal').value = '';
-                document.getElementById('filter-keterlambatan').value = '';
+                        console.log('Filters cleared'); // Debug
+                        fetchPeminjamans();
+                        filterDropdown.classList.remove('show');
+                    });
+                }
+            }
 
-                currentFilters.status = '';
-                currentFilters.tanggal = '';
-                currentFilters.keterlambatan = '';
+            // =====================================================
+            // REFRESH BUTTON
+            // =====================================================
+            if (btnRefresh) {
+                btnRefresh.addEventListener('click', function() {
+                    console.log('Refresh button clicked'); // Debug
 
-                fetchPeminjamans();
-                filterDropdown.classList.remove('show');
-            });
+                    // Clear all filters
+                    currentFilters = {
+                        search: '',
+                        status: '',
+                        tanggal: '',
+                        keterlambatan: ''
+                    };
 
-            // Pagination click handler
+                    // Clear UI inputs
+                    if (searchInput) searchInput.value = '';
+                    if (document.getElementById('filter-status')) document.getElementById('filter-status').value = '';
+                    if (document.getElementById('filter-tanggal')) document.getElementById('filter-tanggal').value = '';
+                    if (document.getElementById('filter-keterlambatan')) document.getElementById('filter-keterlambatan').value = '';
+
+                    // Fetch fresh data
+                    fetchPeminjamans();
+                });
+            }
+
+            // =====================================================
+            // PAGINATION HANDLER
+            // =====================================================
             document.addEventListener('click', function(e) {
+                // Pagination links
                 const paginationLink = e.target.closest('#pagination a');
                 if (paginationLink && paginationLink.href) {
                     e.preventDefault();
+                    console.log('Pagination clicked:', paginationLink.href); // Debug
                     fetchPeminjamans(paginationLink.href);
                 }
 
-                // Detail button handler
+                // Detail button
                 const btnDetail = e.target.closest('.btn-view-detail');
                 if (btnDetail) {
                     const id = btnDetail.getAttribute('data-id');
@@ -321,27 +391,28 @@
                 }
             });
 
-            // Refresh button
-            btnRefresh.addEventListener('click', function() {
-                fetchPeminjamans();
-            });
-
-            // Select all checkbox
-            selectAll.addEventListener('change', function() {
-                document.querySelectorAll('.select-peminjaman').forEach(checkbox => {
-                    checkbox.checked = this.checked;
-                    checkbox.closest('tr').classList.toggle('bg-m365-selected', this.checked);
+            // =====================================================
+            // SELECT ALL CHECKBOX
+            // =====================================================
+            if (selectAll) {
+                selectAll.addEventListener('change', function() {
+                    document.querySelectorAll('.select-peminjaman').forEach(checkbox => {
+                        checkbox.checked = this.checked;
+                        checkbox.closest('tr').classList.toggle('bg-m365-selected', this.checked);
+                    });
+                    updateButtonStates();
                 });
-                updateButtonStates();
-            });
+            }
 
-            // Attach row handlers
+            // =====================================================
+            // ATTACH ROW HANDLERS
+            // =====================================================
             function attachRowHandlers() {
                 document.querySelectorAll('.select-peminjaman').forEach(checkbox => {
                     checkbox.addEventListener('change', function() {
                         this.closest('tr').classList.toggle('bg-m365-selected', this.checked);
 
-                        if (!this.checked) {
+                        if (!this.checked && selectAll) {
                             selectAll.checked = false;
                         }
 
@@ -350,31 +421,46 @@
                 });
             }
 
-            // Update button states
+            // =====================================================
+            // UPDATE BUTTON STATES
+            // =====================================================
             function updateButtonStates() {
                 const selected = document.querySelectorAll('.select-peminjaman:checked');
                 const count = selected.length;
 
                 if (count === 0) {
-                    btnReturn.disabled = true;
-                    btnExtend.disabled = true;
-                    btnDelete.disabled = true;
+                    if (btnReturn) btnReturn.disabled = true;
+                    if (btnExtend) btnExtend.disabled = true;
+                    if (btnDelete) btnDelete.disabled = true;
                     return;
                 }
 
-                const statuses = Array.from(selected).map(cb =>
-                    cb.closest('tr').getAttribute('data-status')
+                const statuses = Array.from(selected).map(cb => {
+                    const status = cb.closest('tr').getAttribute('data-status');
+                    // ✅ Handle empty status as Dipinjam
+                    return status || 'Dipinjam';
+                });
+
+                // ✅ Allow return for Dipinjam and Diperpanjang (including empty status treated as Dipinjam)
+                const canReturn = statuses.every(s =>
+                    s === 'Dipinjam' || s === 'Diperpanjang' || s === ''
                 );
+                if (btnReturn) btnReturn.disabled = !canReturn;
 
-                const allActive = statuses.every(s => s === 'Dipinjam' || s === 'Diperpanjang');
-                btnReturn.disabled = !allActive;
 
-                btnExtend.disabled = !(count === 1 && (statuses[0] === 'Dipinjam' || statuses[0] === 'Diperpanjang'));
+                const canExtend = count === 1 && (
+                    statuses[0] === 'Dipinjam' ||
+                    statuses[0] === 'Diperpanjang' ||
+                    statuses[0] === '' // Treat empty as Dipinjam
+                );
+                if (btnExtend) btnExtend.disabled = !canExtend;
 
-                btnDelete.disabled = false;
+                if (btnDelete) btnDelete.disabled = false;
             }
 
-            // Detail modal
+            // =====================================================
+            // DETAIL MODAL
+            // =====================================================
             async function showDetailModal(id) {
                 try {
                     const res = await fetch(`{{ url('admin/peminjamans') }}/${id}`, {
@@ -388,6 +474,7 @@
 
                     const data = await res.json();
 
+                    // Populate modal fields
                     document.getElementById('detail-transaction-number').textContent = data.transaction_number;
                     document.getElementById('detail-member-name').textContent = data.member_name;
                     document.getElementById('detail-member-email').textContent = data.member_email;
@@ -406,6 +493,7 @@
                         document.getElementById('detail-days-late').classList.add('d-none');
                     }
 
+                    // Items list
                     const itemsList = document.getElementById('detail-items-list');
                     itemsList.innerHTML = data.items.map(item => `
                 <li class="list-group-item">
@@ -423,6 +511,7 @@
                 </li>
             `).join('');
 
+                    // Perpanjangan history
                     if (data.perpanjangans && data.perpanjangans.length > 0) {
                         document.getElementById('detail-perpanjangan-section').style.display = 'block';
                         const perpanjanganList = document.getElementById('detail-perpanjangan-list');
@@ -442,6 +531,7 @@
                         document.getElementById('detail-perpanjangan-section').style.display = 'none';
                     }
 
+                    // Show modal
                     new bootstrap.Modal(document.getElementById('modalDetailPeminjaman')).show();
 
                 } catch (err) {
@@ -450,43 +540,47 @@
                 }
             }
 
-            // Delete handler
-            btnDelete.addEventListener('click', async function() {
-                const selected = Array.from(document.querySelectorAll('.select-peminjaman:checked')).map(cb => cb.value);
+            // =====================================================
+            // DELETE HANDLER
+            // =====================================================
+            if (btnDelete) {
+                btnDelete.addEventListener('click', async function() {
+                    const selected = Array.from(document.querySelectorAll('.select-peminjaman:checked')).map(cb => cb.value);
 
-                if (selected.length === 0) {
-                    alert('Pilih setidaknya satu transaksi!');
-                    return;
-                }
+                    if (selected.length === 0) {
+                        alert('Pilih setidaknya satu transaksi!');
+                        return;
+                    }
 
-                if (!confirm(`Yakin hapus ${selected.length} transaksi?`)) {
-                    return;
-                }
+                    if (!confirm(`Yakin hapus ${selected.length} transaksi?`)) {
+                        return;
+                    }
 
-                try {
-                    const res = await fetch('{{ route("admin.peminjamans.destroySelected") }}', {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({ ids: selected })
-                    });
+                    try {
+                        const res = await fetch('{{ route("admin.peminjamans.destroySelected") }}', {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({ ids: selected })
+                        });
 
-                    const data = await res.json();
+                        const data = await res.json();
 
-                    if (!res.ok) throw new Error(data.error || 'Failed to delete');
+                        if (!res.ok) throw new Error(data.error || 'Failed to delete');
 
-                    alert(data.message);
-                    selectAll.checked = false;
-                    await fetchPeminjamans();
+                        alert(data.message);
+                        if (selectAll) selectAll.checked = false;
+                        await fetchPeminjamans();
 
-                } catch (err) {
-                    console.error('Delete error:', err);
-                    alert('Error: ' + err.message);
-                }
-            });
+                    } catch (err) {
+                        console.error('Delete error:', err);
+                        alert('Error: ' + err.message);
+                    }
+                });
+            }
 
             // Initialize
             attachRowHandlers();

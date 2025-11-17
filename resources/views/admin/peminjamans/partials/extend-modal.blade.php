@@ -3,6 +3,7 @@
         <form id="form-extend-peminjaman" class="modal-content">
             @csrf
             <input type="hidden" name="id_peminjaman" id="extend-id-peminjaman">
+            <input type="hidden" id="extend-jumlah-perpanjangan">
 
             <div class="modal-header bg-warning">
                 <h5 class="modal-title"><i class="bi bi-arrow-clockwise me-2"></i>Perpanjangan Peminjaman</h5>
@@ -10,50 +11,60 @@
             </div>
 
             <div class="modal-body">
-                <!-- Info Peminjaman -->
-                <div class="alert alert-info" id="extend-info-box">
-                    <strong>Info Peminjaman:</strong>
-                    <div class="mt-2">
-                        <small>Transaksi: <strong id="extend-transaction-number">-</strong></small><br>
-                        <small>Due Date Lama: <strong id="extend-due-date-lama">-</strong></small><br>
-                        <small>Hari Telat: <strong id="extend-hari-telat" class="text-danger">-</strong></small><br>
-                        <small>Biaya Keterlambatan: <strong id="extend-denda-telat" class="text-danger">Rp 0</strong></small>
+                <!-- ✅ Warning if already extended -->
+                <div class="alert alert-danger d-none" id="extend-warning-max">
+                    <strong><i class="bi bi-exclamation-triangle me-2"></i>Tidak Bisa Perpanjang!</strong>
+                    <p class="mb-0 mt-2">Transaksi ini sudah diperpanjang 1x. Perpanjangan hanya bisa dilakukan maksimal 1x saja.</p>
+                </div>
+
+                <div id="extend-form-content">
+                    <!-- Info Peminjaman -->
+                    <div class="alert alert-info" id="extend-info-box">
+                        <strong>Info Peminjaman:</strong>
+                        <div class="mt-2">
+                            <small>Transaksi: <strong id="extend-transaction-number">-</strong></small><br>
+                            <small>Due Date Lama: <strong id="extend-due-date-lama">-</strong></small><br>
+                            <small>Hari Telat: <strong id="extend-hari-telat" class="text-danger">-</strong></small><br>
+                            <small>Biaya Keterlambatan: <strong id="extend-denda-telat" class="text-danger">Rp 0</strong></small><br>
+                            <small>Jumlah Perpanjangan: <strong id="extend-count-display" class="text-info">0/1</strong></small>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Tanggal Kembali Rencana Baru -->
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Tanggal Kembali Rencana Baru</label>
-                    <input type="date" name="tanggal_kembali_rencana_baru" id="extend-tanggal-baru" class="form-control" required>
-                    <small class="text-muted">Maksimal 5 hari dari due date lama</small>
-                </div>
+                    <!-- Tanggal Kembali Rencana Baru -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tanggal Kembali Rencana Baru</label>
+                        <input type="date" name="tanggal_kembali_rencana_baru" id="extend-tanggal-baru" class="form-control" required>
+                        <small class="text-muted">Maksimal 5 hari dari due date lama</small>
+                    </div>
 
-                <!-- Biaya Perpanjangan (Auto-calculated) -->
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Biaya Perpanjangan</label>
-                    <input type="text" id="extend-biaya-display" class="form-control" readonly>
-                    <small class="text-muted">Biaya = Denda keterlambatan (jika ada)</small>
-                </div>
+                    <!-- Biaya Perpanjangan (Auto-calculated) -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Biaya Perpanjangan</label>
+                        <input type="text" id="extend-biaya-display" class="form-control" readonly>
+                        <small class="text-muted">Biaya = Denda keterlambatan (jika ada)</small>
+                    </div>
 
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Catatan</label>
-                    <textarea name="catatan" class="form-control" rows="2"></textarea>
-                </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Catatan</label>
+                        <textarea name="catatan" class="form-control" rows="2"></textarea>
+                    </div>
 
-                <!-- Warning Alert -->
-                <div class="alert alert-warning">
-                    <strong><i class="bi bi-exclamation-triangle me-2"></i>Perhatian:</strong>
-                    <ul class="mb-0 mt-2">
-                        <li>Perpanjangan hanya bisa <strong>maksimal 5 hari</strong> dari due date lama</li>
-                        <li>Jika perpanjang setelah melewati due date, tetap kena denda sesuai hari telat</li>
-                        <li>Setelah perpanjang, perhitungan denda dimulai dari due date baru</li>
-                    </ul>
+                    <!-- Warning Alert -->
+                    <div class="alert alert-warning">
+                        <strong><i class="bi bi-exclamation-triangle me-2"></i>Perhatian:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Perpanjangan hanya bisa <strong>maksimal 1x per transaksi</strong></li>
+                            <li>Perpanjangan maksimal <strong>5 hari</strong> dari due date lama</li>
+                            <li>Jika perpanjang setelah melewati due date, tetap kena denda sesuai hari telat</li>
+                            <li>Setelah perpanjang, perhitungan denda dimulai dari due date baru</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
 
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                <button type="submit" class="btn btn-warning">
+                <button type="submit" class="btn btn-warning" id="extend-submit-btn">
                     <i class="bi bi-check-lg me-1"></i>Submit Perpanjangan
                 </button>
             </div>

@@ -1,5 +1,17 @@
 @foreach($peminjamans as $peminjaman)
-    <tr data-id="{{ $peminjaman->id }}" data-status="{{ $peminjaman->status_transaksi }}" class="border-bottom border-m365">
+    @php
+        $displayStatus = $peminjaman->status_transaksi;
+        if (empty($displayStatus)) {
+            $displayStatus = 'Dipinjam';
+            $badgeClass = 'bg-warning text-dark';
+        } else {
+            $badgeClass = $peminjaman->getStatusBadgeClass();
+        }
+    @endphp
+
+    <tr data-id="{{ $peminjaman->id }}"
+        data-status="{{ $displayStatus }}"
+        class="border-bottom border-m365">
         <td>
             <input type="checkbox" class="form-check-input select-peminjaman" value="{{ $peminjaman->id }}">
         </td>
@@ -15,7 +27,7 @@
         </td>
         <td class="text-secondary small">
             {{ $peminjaman->tanggal_kembali_rencana->format('d M Y') }}
-            @if($peminjaman->isOverdue() && in_array($peminjaman->status_transaksi, ['Dipinjam', 'Diperpanjang']))
+            @if($peminjaman->isOverdue() && in_array($displayStatus, ['Dipinjam', 'Diperpanjang']))
                 <br><small class="text-danger fw-bold">Telat {{ $peminjaman->days_late }} hari</small>
             @endif
         </td>
@@ -26,8 +38,8 @@
             </small>
         </td>
         <td>
-            <span class="badge {{ $peminjaman->getStatusBadgeClass() }}">
-                {{ $peminjaman->status_transaksi }}
+            <span class="badge {{ $badgeClass }}">
+                {{ $displayStatus }}
             </span>
             @if($peminjaman->total_denda > 0)
                 <br><small class="text-danger">Denda: Rp {{ number_format($peminjaman->total_denda, 0, ',', '.') }}</small>
@@ -51,5 +63,3 @@
         </td>
     </tr>
 @endif
-
-

@@ -16,9 +16,6 @@ use Carbon\Carbon;
 
 class PeminjamanController extends Controller
 {
-    // =====================================================
-    // INDEX - List all transactions with filters & search
-    // =====================================================
     public function index(Request $request)
     {
         $query = Peminjaman::with(['member', 'officer', 'items.bukuItem.buku', 'perpanjangans']);
@@ -34,7 +31,7 @@ class PeminjamanController extends Controller
             });
         }
 
-        // FILTER: Status Transaksi
+        //  FIX: Filter Status Transaksi
         if ($status = $request->input('status')) {
             $query->where('status_transaksi', $status);
         }
@@ -60,23 +57,19 @@ class PeminjamanController extends Controller
 
         $peminjamans = $query->latest('id')->paginate(10);
 
-        if ($request->ajax()) {
-            // Return only the rows HTML for Ajax requests
-            $rowsHtml = view('admin.peminjamans.partials.rows', compact('peminjamans'))->render();
-            $paginationHtml = view('admin.peminjamans.partials.pagination', compact('peminjamans'))->render();
 
+        if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
-                'rows' => $rowsHtml,
-                'pagination' => $paginationHtml
+                'success' => true,
+                'rows' => view('admin.peminjamans.partials.rows', compact('peminjamans'))->render(),
+                'pagination' => view('admin.peminjamans.partials.pagination', compact('peminjamans'))->render()
             ]);
         }
 
         return view('admin.peminjamans.index', compact('peminjamans'));
     }
 
-    // =====================================================
-    // SHOW - Get single transaction detail
-    // =====================================================
+
     public function show($id)
     {
         $peminjaman = Peminjaman::with([
@@ -126,6 +119,7 @@ class PeminjamanController extends Controller
             'total_denda' => number_format($peminjaman->total_denda, 0, ',', '.'),
             'days_late' => $peminjaman->days_late,
             'catatan' => $peminjaman->catatan ?? '-',
+            'jumlah_perpanjangan' => $peminjaman->jumlah_perpanjangan ?? 0,
             'items' => $items,
             'perpanjangans' => $perpanjangans,
         ]);
@@ -174,7 +168,11 @@ class PeminjamanController extends Controller
                 'tanggal_pinjam' => $validated['tanggal_pinjam'],
                 'tanggal_kembali_rencana' => $validated['tanggal_kembali_rencana'],
                 'status_transaksi' => 'Dipinjam',
+                'total_items' => count($validated['id_buku_items']),
+                'items_dikembalikan' => 0,
+                'total_denda' => 0,
                 'catatan' => $validated['catatan'] ?? null,
+                'jumlah_perpanjangan' => 0,
             ]);
 
             // Create items
@@ -223,12 +221,27 @@ class PeminjamanController extends Controller
             DB::beginTransaction();
 
             $peminjaman = Peminjaman::findOrFail($validated['id_peminjaman']);
+
+            // ✅ Handle empty status
+            $currentStatus = $peminjaman->status_transaksi;
+            if (empty($currentStatus)) {
+                $currentStatus = 'Dipinjam';
+            }
+
+            // Check if transaction can be returned
+            if (!in_array($currentStatus, ['Dipinjam', 'Diperpanjang'])) {
+                throw new \Exception('Hanya transaksi dengan status Dipinjam/Diperpanjang yang bisa dikembalikan!');
+            }
+
             $today = Carbon::parse($validated['tanggal_kembali_aktual']);
             $dueDate = Carbon::parse($peminjaman->tanggal_kembali_rencana);
 
             // Calculate late days
             $daysLate = max(0, $today->diffInDays($dueDate, false) * -1);
             $dendaPerHari = 1000;
+
+            $totalDendaTransaksi = 0;
+            $itemsReturned = 0;
 
             foreach ($validated['items'] as $itemData) {
                 $item = PeminjamanItem::findOrFail($itemData['id_item']);
@@ -238,21 +251,25 @@ class PeminjamanController extends Controller
                 }
 
                 $dendaKeterlambatan = $daysLate * $dendaPerHari;
-                $dendaKerusakan = $itemData['denda_kerusakan'];
+                $dendaKerusakan = floatval($itemData['denda_kerusakan']);
                 $totalDendaItem = $dendaKeterlambatan + $dendaKerusakan;
 
                 // Update item
-                $item->update([
-                    'status_item' => 'Dikembalikan',
-                    'tanggal_kembali_aktual' => $validated['tanggal_kembali_aktual'],
-                    'kondisi_kembali' => $itemData['kondisi_kembali'],
-                    'denda_keterlambatan' => $dendaKeterlambatan,
-                    'denda_kerusakan' => $dendaKerusakan,
-                    'total_denda_item' => $totalDendaItem,
-                    'catatan_pengembalian' => $validated['catatan'],
-                ]);
+                $item->status_item = 'Dikembalikan';
+                $item->tanggal_kembali_aktual = $validated['tanggal_kembali_aktual'];
+                $item->kondisi_kembali = $itemData['kondisi_kembali'];
+                $item->denda_keterlambatan = $dendaKeterlambatan;
+                $item->denda_kerusakan = $dendaKerusakan;
+                $item->total_denda_item = $totalDendaItem;
+                $item->catatan_pengembalian = $validated['catatan'] ?? null;
+                $item->save();
+
+                $totalDendaTransaksi += $totalDendaItem;
+                $itemsReturned++;
 
                 // Update buku_item status based on condition
+                $bukuItem = BukuItem::findOrFail($item->id_buku_item);
+
                 $newStatus = match($itemData['kondisi_kembali']) {
                     'Hilang' => 'Hilang',
                     'Rusak' => 'Reparasi',
@@ -266,29 +283,62 @@ class PeminjamanController extends Controller
                     default => 'Baik'
                 };
 
-                BukuItem::where('id', $item->id_buku_item)->update([
-                    'status' => $newStatus,
-                    'kondisi' => $newKondisi
-                ]);
+                $bukuItem->status = $newStatus;
+                $bukuItem->kondisi = $newKondisi;
+                $bukuItem->save();
             }
+
+            // ✅ IMPROVED: Update peminjaman with better status logic
+            $totalItems = $peminjaman->total_items;
+            $currentReturned = $peminjaman->items_dikembalikan + $itemsReturned;
+
+            // Determine new status
+            if ($currentReturned >= $totalItems) {
+                // All items returned
+                $newStatus = 'Dikembalikan';
+            } else {
+                // Partial return - keep current active status
+                if (empty($currentStatus) || !in_array($currentStatus, ['Dipinjam', 'Diperpanjang'])) {
+                    $newStatus = 'Dipinjam';
+                } else {
+                    $newStatus = $currentStatus;
+                }
+            }
+
+            $peminjaman->items_dikembalikan = $currentReturned;
+            $peminjaman->total_denda = ($peminjaman->total_denda ?? 0) + $totalDendaTransaksi;
+            $peminjaman->status_transaksi = $newStatus;
+            $peminjaman->save();
 
             DB::commit();
 
-            // Refresh peminjaman to get updated totals
+            // Refresh to get final state
             $peminjaman->refresh();
 
             return response()->json([
+                'success' => true,
                 'message' => 'Pengembalian berhasil diproses!',
-                'total_denda' => $peminjaman->total_denda,
+                'total_denda' => number_format($peminjaman->total_denda, 0, ',', '.'),
                 'days_late' => $daysLate,
                 'items_dikembalikan' => $peminjaman->items_dikembalikan,
                 'status_transaksi' => $peminjaman->status_transaksi
             ], 200);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation error',
+                'details' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             DB::rollback();
             \Log::error('Return error: ' . $e->getMessage());
-            return response()->json(['error' => $e->getMessage()], 500);
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -300,7 +350,7 @@ class PeminjamanController extends Controller
         try {
             $validated = $request->validate([
                 'id_peminjaman' => 'required|exists:peminjamans,id',
-                'tanggal_kembali_rencana_baru' => 'required|date',
+                'tanggal_kembali_rencana_baru' => 'required|date|after:today',
                 'catatan' => 'nullable|string|max:500',
             ]);
 
@@ -308,55 +358,80 @@ class PeminjamanController extends Controller
 
             $peminjaman = Peminjaman::findOrFail($validated['id_peminjaman']);
 
+            // CHECK: Only Dipinjam/Diperpanjang can extend
             if (!in_array($peminjaman->status_transaksi, ['Dipinjam', 'Diperpanjang'])) {
                 throw new \Exception('Hanya transaksi Dipinjam/Diperpanjang yang bisa diperpanjang!');
+            }
+
+            // CHECK: Max 1x extension
+            $currentExtensions = $peminjaman->jumlah_perpanjangan ?? 0;
+            if ($currentExtensions >= 1) {
+                throw new \Exception('Perpanjangan hanya bisa dilakukan 1x saja!');
             }
 
             $oldDueDate = Carbon::parse($peminjaman->tanggal_kembali_rencana);
             $newDueDate = Carbon::parse($validated['tanggal_kembali_rencana_baru']);
             $today = Carbon::today();
 
-            // Validation: Max 5 days extension
-            $extensionDays = $newDueDate->diffInDays($oldDueDate);
-            if ($extensionDays > 5) {
-                throw new \Exception('Perpanjangan maksimal 5 hari!');
+            // Validation: New due date must be after old due date
+            if ($newDueDate->lte($oldDueDate)) {
+                throw new \Exception('Tanggal baru harus setelah due date lama!');
             }
 
-            // Calculate late fee if any
+            // Validation: Max 5 days extension from old due date
+            $extensionDays = $newDueDate->diffInDays($oldDueDate);
+            if ($extensionDays > 5) {
+                throw new \Exception('Perpanjangan maksimal 5 hari dari due date lama!');
+            }
+
+            // Calculate late fee if overdue
             $daysLate = max(0, $today->diffInDays($oldDueDate, false) * -1);
             $biaya = $daysLate * 1000;
 
             // Create perpanjangan record
-            Perpanjangan::create([
-                'id_peminjaman' => $peminjaman->id,
-                'id_officer' => Auth::id(),
-                'tanggal_perpanjangan' => $today,
-                'due_date_lama' => $oldDueDate,
-                'due_date_baru' => $newDueDate,
-                'hari_perpanjangan' => $extensionDays,
-                'biaya' => $biaya,
-                'catatan' => $validated['catatan'],
-            ]);
+            $perpanjangan = new Perpanjangan();
+            $perpanjangan->id_peminjaman = $peminjaman->id;
+            $perpanjangan->id_officer = Auth::id();
+            $perpanjangan->tanggal_perpanjangan = $today;
+            $perpanjangan->due_date_lama = $oldDueDate;
+            $perpanjangan->due_date_baru = $newDueDate;
+            $perpanjangan->hari_perpanjangan = $extensionDays;
+            $perpanjangan->biaya = $biaya;
+            $perpanjangan->catatan = $validated['catatan'] ?? null;
+            $perpanjangan->save();
 
-            // Update peminjaman due date and status
-            $peminjaman->update([
-                'tanggal_kembali_rencana' => $newDueDate,
-                'status_transaksi' => 'Diperpanjang',
-            ]);
+            // Update peminjaman
+            $peminjaman->tanggal_kembali_rencana = $newDueDate;
+            $peminjaman->status_transaksi = 'Diperpanjang';
+            $peminjaman->jumlah_perpanjangan = $currentExtensions + 1;
+            $peminjaman->save();
 
             DB::commit();
 
             return response()->json([
+                'success' => true,
                 'message' => 'Perpanjangan berhasil diproses!',
                 'new_due_date' => $newDueDate->format('d M Y'),
-                'biaya' => $biaya,
-                'days_late' => $daysLate
+                'biaya' => number_format($biaya, 0, ',', '.'),
+                'days_late' => $daysLate,
+                'extension_count' => $peminjaman->jumlah_perpanjangan
             ], 200);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation error',
+                'details' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             DB::rollback();
             \Log::error('Extend error: ' . $e->getMessage());
-            return response()->json(['error' => $e->getMessage()], 500);
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
