@@ -1,75 +1,58 @@
-@foreach($peminjamans as $index => $peminjaman)
+@foreach($tataraks as $index => $tatarak)
     @php
         $colors = ['primary', 'danger', 'info', 'success', 'warning', 'secondary'];
         $avatarColor = $colors[$index % count($colors)];
-        $initial = strtoupper(substr($peminjaman->member?->name ?? 'U', 0, 1));
-
-
-        $daysLate = 0;
-        if ($peminjaman->status === 'Dipinjam') {
-            $dueDate = \Carbon\Carbon::parse($peminjaman->tanggal_kembali_rencana);
-            $today = \Carbon\Carbon::today();
-            if ($today->gt($dueDate)) {
-                $daysLate = $today->diffInDays($dueDate);
-            }
-        } elseif ($peminjaman->pengembalian) {
-            // Already returned, get from pengembalian record
-            $dueDate = \Carbon\Carbon::parse($peminjaman->tanggal_kembali_rencana);
-            $returnDate = \Carbon\Carbon::parse($peminjaman->pengembalian->tanggal_kembali_aktual);
-            if ($returnDate->gt($dueDate)) {
-                $daysLate = $returnDate->diffInDays($dueDate);
-            }
-        }
-
-
-        $perpanjanganCount = $peminjaman->perpanjangans()->count();
+        $initial = strtoupper(substr($tatarak->user?->name ?? 'U', 0, 1));
     @endphp
-    <tr data-id="{{ $peminjaman->id }}" class="border-bottom border-m365">
+    <tr data-id="{{ $tatarak->id }}" class="border-bottom border-m365">
         <td>
             <input type="checkbox"
-                   class="form-check-input select-peminjaman"
-                   value="{{ $peminjaman->id }}"
-                   data-status="{{ $peminjaman->status }}"
-                   data-member-name="{{ $peminjaman->member?->name ?? 'N/A' }}"
-                   data-return-date="{{ $peminjaman->pengembalian ? $peminjaman->pengembalian->tanggal_kembali_aktual->format('d M Y') : '' }}"
-                   data-officer-name="{{ $peminjaman->pengembalian?->officer?->name ?? 'N/A' }}"
-                   data-perpanjangan-count="{{ $perpanjanganCount }}">
+                   class="form-check-input select-tatarak"
+                   value="{{ $tatarak->id }}">
         </td>
-        <td>{{ $peminjaman->id }}</td>
-        <td>{{ $peminjaman->member?->name ?? 'N/A' }}</td>
-        <td>{{ $peminjaman->bukuItem?->buku?->judul ?? 'N/A' }}</td>
-        <td>{{ $peminjaman->bukuItem?->barcode ?? 'N/A' }}</td>
-        <td>{{ $peminjaman->tanggal_pinjam ? $peminjaman->tanggal_pinjam->format('d M Y') : '-' }}</td>
-        <td>{{ $peminjaman->tanggal_kembali_rencana ? $peminjaman->tanggal_kembali_rencana->format('d M Y') : '-' }}</td>
+        <td>{{ $tatarak->id }}</td>
         <td>
-            <span class="badge bg-{{ $peminjaman->status == 'Dipinjam' ? 'info' : ($peminjaman->status == 'Dikembalikan' ? 'success' : 'danger') }}">
-                {{ $peminjaman->status }}
+            <div>
+                <strong>{{ $tatarak->bukuItem?->buku?->judul ?? 'N/A' }}</strong><br>
+                <small class="text-muted">Barcode: {{ $tatarak->bukuItem?->barcode ?? 'N/A' }}</small>
+            </div>
+        </td>
+        <td>
+            <span class="badge bg-primary">{{ $tatarak->rak?->nama ?? 'N/A' }}</span>
+            <br>
+            <small class="text-muted">{{ $tatarak->rak?->lokasi?->ruang ?? '' }}</small>
+        </td>
+        <td>
+            <span class="badge bg-info">
+                Kol: {{ $tatarak->kolom }}, Bar: {{ $tatarak->baris }}
             </span>
-            @if($perpanjanganCount > 0)
-                <span class="badge bg-warning text-dark ms-1" title="Sudah diperpanjang {{ $perpanjanganCount }}x">
-                    <i class="bi bi-arrow-clockwise"></i> {{ $perpanjanganCount }}x
-                </span>
-            @endif
         </td>
-        <td>
-            @if($daysLate > 0)
-                <span class="badge bg-danger">{{ $daysLate }} hari</span>
-            @else
-                <span class="badge bg-success">Tepat Waktu</span>
-            @endif
-        </td>
-        <td>Rp {{ number_format($peminjaman->pengembalian?->total_denda ?? 0, 0, ',', '.') }}</td>
         <td>
             <div class="d-flex align-items-center">
-                <span class="bg-{{ $avatarColor }} text-white rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold me-2" style="width: 32px; height: 32px; font-size: 14px;">
+                <span class="bg-{{ $avatarColor }} text-white rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold me-2"
+                      style="width: 32px; height: 32px; font-size: 14px;">
                     {{ $initial }}
                 </span>
-                <span class="text-m365-blue">{{ $peminjaman->officer?->name ?? 'Unknown' }}</span>
+                <span class="text-m365-blue">{{ $tatarak->user?->name ?? 'Unknown' }}</span>
             </div>
+        </td>
+        <td>
+            @if($tatarak->updated_at)
+                {{ $tatarak->updated_at->format('d M Y H:i') }}
+            @elseif($tatarak->created_at)
+                {{ $tatarak->created_at->format('d M Y H:i') }}
+            @else
+                <span class="text-muted">-</span>
+            @endif
         </td>
     </tr>
 @endforeach
 
-@if($peminjamans->isEmpty())
-    <tr><td colspan="11" class="text-center py-3">No records found.</td></tr>
+@if($tataraks->isEmpty())
+    <tr>
+        <td colspan="7" class="text-center py-4 text-muted">
+            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+            <p class="mb-0 mt-2">No records found.</p>
+        </td>
+    </tr>
 @endif

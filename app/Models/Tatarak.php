@@ -9,10 +9,11 @@ class Tatarak extends Model
 {
     use HasFactory;
 
-    public $timestamps = false;
-
     protected $table = 'tataraks';
     protected $fillable = ['id_buku_item', 'id_rak', 'kolom', 'baris', 'id_user'];
+
+    // ✅ Enable timestamps
+    public $timestamps = true;
 
     public function bukuItem()
     {

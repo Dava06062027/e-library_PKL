@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Tatarak;
 use App\Models\BukuItem;
 use App\Models\Rak;
+use App\Models\Tatarak;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -31,6 +31,13 @@ class TataraksController extends Controller
         }
 
         $tataraks = $query->paginate(15);
+
+        // ✅ LOGGING UNTUK DEBUG
+        \Log::info('Tataraks Query', [
+            'count' => $tataraks->count(),
+            'total' => $tataraks->total(),
+            'first_item' => $tataraks->first()
+        ]);
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([

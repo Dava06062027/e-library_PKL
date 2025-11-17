@@ -421,6 +421,29 @@
                 });
             }
 
+            $btnEdit.addEventListener('click', async function() {
+                const ids = getSelectedIds();
+                if (ids.length !== 1) return;
+
+                const id = ids[0];
+                try {
+                    const res = await fetch(`{{ url('admin/tataraks') }}/${id}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const tatarak = await res.json();
+
+                    document.getElementById('edit-id').value = tatarak.id;
+                    document.getElementById('edit-id_buku_item').value = tatarak.id_buku_item;
+                    document.getElementById('edit-id_rak').value = tatarak.id_rak;
+                    document.getElementById('edit-kolom').value = tatarak.kolom;
+                    document.getElementById('edit-baris').value = tatarak.baris;
+
+                    new bootstrap.Modal(document.getElementById('modalEditTatarak')).show();
+              a  } catch (err) {
+                    alert('Error loading data: ' + err.message);
+                }
+            });
+
             // =====================================================
             // UPDATE BUTTON STATES
             // =====================================================

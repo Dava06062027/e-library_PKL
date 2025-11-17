@@ -1,19 +1,19 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\PeminjamanController;
+use App\Http\Controllers\Admin\RegistrationController;
+use App\Http\Controllers\Admin\TataraksController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\BukuController;
 use App\Http\Controllers\BukuItemController;
 use App\Http\Controllers\KategoriController;
-use App\Http\Controllers\SubKategoriController;
-use App\Http\Controllers\RakController;
 use App\Http\Controllers\LokasiRakController;
-use App\Http\Controllers\PenerbitController;
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\TataraksController;
-use App\Http\Controllers\Admin\PeminjamanController;
 use App\Http\Controllers\MemberRegistrationController;
-use App\Http\Controllers\Admin\RegistrationController;
+use App\Http\Controllers\PenerbitController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RakController;
+use App\Http\Controllers\SubKategoriController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
@@ -99,13 +99,22 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
         // =============================
         // TATARAKS
         // =============================
-        Route::get('tataraks/search-buku-datatable', [TataraksController::class, 'searchBukuDatatable'])->name('tataraks.searchBukuDatatable');
-        Route::get('tataraks/available-items', [TataraksController::class, 'availableItems'])->name('tataraks.available-items');
-        Route::get('tataraks/available-eksemplar/{id_buku}', [TataraksController::class, 'availableEksemplarByBuku'])->name('tataraks.availableEksemplarByBuku');
-        Route::get('tataraks/buku-kategori/{id_buku}', [TataraksController::class, 'getBukuKategori'])->name('tataraks.getBukuKategori');
-        Route::get('tataraks/rak-by-kategori', [TataraksController::class, 'getRakByKategori'])->name('tataraks.getRakByKategori');
-        Route::post('tataraks/bulk', [TataraksController::class, 'bulkStore'])->name('tataraks.bulkStore');
-        Route::delete('tataraks/destroy-selected', [TataraksController::class, 'destroySelected'])->name('tataraks.destroySelected');
+        Route::get('tataraks/search-buku-datatable', [TataraksController::class, 'searchBukuDatatable'])
+            ->name('tataraks.searchBukuDatatable');
+        Route::get('tataraks/available-items', [TataraksController::class, 'availableItems'])
+            ->name('tataraks.available-items');
+        Route::get('tataraks/available-eksemplar/{id_buku}', [TataraksController::class, 'availableEksemplarByBuku'])
+            ->name('tataraks.availableEksemplarByBuku');
+        Route::get('tataraks/buku-kategori/{id_buku}', [TataraksController::class, 'getBukuKategori'])
+            ->name('tataraks.getBukuKategori');
+        Route::get('tataraks/rak-by-kategori', [TataraksController::class, 'getRakByKategori'])
+            ->name('tataraks.getRakByKategori');
+        Route::post('tataraks/bulk', [TataraksController::class, 'bulkStore'])
+            ->name('tataraks.bulkStore');
+        Route::delete('tataraks/destroy-selected', [TataraksController::class, 'destroySelected'])
+            ->name('tataraks.destroySelected');
+
+        // ✅ RESOURCE ROUTES LAST
         Route::resource('tataraks', TataraksController::class)->except(['create', 'edit']);
 
         // =============================

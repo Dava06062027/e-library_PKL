@@ -52,7 +52,7 @@
                 <i class="bi bi-eye"></i> Detail
             </button>
         </td>
-    </tr>
+    </tr>a
 @endforeach
 
 @if($peminjamans->isEmpty())
