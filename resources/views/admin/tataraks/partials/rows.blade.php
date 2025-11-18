@@ -10,7 +10,13 @@
                    class="form-check-input select-tatarak"
                    value="{{ $tatarak->id }}">
         </td>
-        <td>{{ $tatarak->id }}</td>
+        <td>
+            <button class="btn btn-sm btn-link text-decoration-none p-0 btn-detail-tatarak"
+                    data-id="{{ $tatarak->id }}"
+                    title="View Details">
+                {{ $tatarak->id }}
+            </button>
+        </td>
         <td>
             <div>
                 <strong>{{ $tatarak->bukuItem?->buku?->judul ?? 'N/A' }}</strong><br>
@@ -18,9 +24,10 @@
             </div>
         </td>
         <td>
-            <span class="badge bg-primary">{{ $tatarak->rak?->nama ?? 'N/A' }}</span>
-            <br>
-            <small class="text-muted">{{ $tatarak->rak?->lokasi?->ruang ?? '' }}</small>
+            <div>
+                <span class="badge bg-primary">{{ $tatarak->rak?->nama ?? 'N/A' }}</span><br>
+                <small class="text-muted">{{ $tatarak->rak?->lokasi?->ruang ?? '' }}</small>
+            </div>
         </td>
         <td>
             <span class="badge bg-info">
@@ -33,14 +40,19 @@
                       style="width: 32px; height: 32px; font-size: 14px;">
                     {{ $initial }}
                 </span>
-                <span class="text-m365-blue">{{ $tatarak->user?->name ?? 'Unknown' }}</span>
+                <div>
+                    <div class="text-m365-blue">{{ $tatarak->user?->name ?? 'Unknown' }}</div>
+                    <small class="text-muted">{{ $tatarak->user?->role ?? '' }}</small>
+                </div>
             </div>
         </td>
         <td>
             @if($tatarak->updated_at)
-                {{ $tatarak->updated_at->format('d M Y H:i') }}
+                <div>{{ $tatarak->updated_at->format('d M Y') }}</div>
+                <small class="text-muted">{{ $tatarak->updated_at->format('H:i') }}</small>
             @elseif($tatarak->created_at)
-                {{ $tatarak->created_at->format('d M Y H:i') }}
+                <div>{{ $tatarak->created_at->format('d M Y') }}</div>
+                <small class="text-muted">{{ $tatarak->created_at->format('H:i') }}</small>
             @else
                 <span class="text-muted">-</span>
             @endif

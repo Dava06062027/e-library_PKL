@@ -1,7 +1,9 @@
 @foreach($peminjamans as $peminjaman)
     @php
+        // ✅ Normalize status - handle empty/null as 'Dipinjam'
         $displayStatus = $peminjaman->status_transaksi;
-        if (empty($displayStatus)) {
+
+        if (empty($displayStatus) || is_null($displayStatus)) {
             $displayStatus = 'Dipinjam';
             $badgeClass = 'bg-warning text-dark';
         } else {
@@ -11,6 +13,8 @@
 
     <tr data-id="{{ $peminjaman->id }}"
         data-status="{{ $displayStatus }}"
+        data-total-items="{{ $peminjaman->total_items }}"
+        data-items-returned="{{ $peminjaman->items_dikembalikan }}"
         class="border-bottom border-m365">
         <td>
             <input type="checkbox" class="form-check-input select-peminjaman" value="{{ $peminjaman->id }}">
@@ -52,7 +56,7 @@
                 <i class="bi bi-eye"></i> Detail
             </button>
         </td>
-    </tr>a
+    </tr>
 @endforeach
 
 @if($peminjamans->isEmpty())

@@ -25,7 +25,7 @@ class Rak extends Model
     ];
 
     // Relationship ke lokasi_raks
-    public function lokasiRak()
+    public function lokasi()
     {
         return $this->belongsTo(LokasiRak::class, 'id_lokasi');
     }

@@ -13,15 +13,19 @@ class TataraksController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Tatarak::with(['bukuItem.buku', 'rak', 'user']);
+        $query = Tatarak::with(['bukuItem.buku', 'rak.lokasi', 'user']);
 
-        // Search by barcode or user name
         if ($request->has('q') && $request->q !== '') {
             $search = $request->q;
-            $query->whereHas('bukuItem', function ($q) use ($search) {
-                $q->where('barcode', 'like', "%{$search}%");
-            })->orWhereHas('user', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%");
+            $query->where(function($q) use ($search) {
+                $q->whereHas('bukuItem', function ($subQ) use ($search) {
+                    $subQ->where('barcode', 'like', "%{$search}%")
+                        ->orWhereHas('buku', function($bukuQ) use ($search) {
+                            $bukuQ->where('judul', 'like', "%{$search}%");
+                        });
+                })->orWhereHas('user', function ($subQ) use ($search) {
+                    $subQ->where('name', 'like', "%{$search}%");
+                });
             });
         }
 
@@ -30,14 +34,15 @@ class TataraksController extends Controller
             $query->where('id_rak', $request->rak);
         }
 
-        $tataraks = $query->paginate(15);
+        // Filter by role
+        if ($request->has('role') && $request->role !== '') {
+            $role = $request->role;
+            $query->whereHas('user', function($q) use ($role) {
+                $q->where('role', $role);
+            });
+        }
 
-        // ✅ LOGGING UNTUK DEBUG
-        \Log::info('Tataraks Query', [
-            'count' => $tataraks->count(),
-            'total' => $tataraks->total(),
-            'first_item' => $tataraks->first()
-        ]);
+        $tataraks = $query->latest()->paginate(15);
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([

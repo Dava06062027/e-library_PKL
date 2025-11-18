@@ -421,29 +421,6 @@
                 });
             }
 
-            $btnEdit.addEventListener('click', async function() {
-                const ids = getSelectedIds();
-                if (ids.length !== 1) return;
-
-                const id = ids[0];
-                try {
-                    const res = await fetch(`{{ url('admin/tataraks') }}/${id}`, {
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    const tatarak = await res.json();
-
-                    document.getElementById('edit-id').value = tatarak.id;
-                    document.getElementById('edit-id_buku_item').value = tatarak.id_buku_item;
-                    document.getElementById('edit-id_rak').value = tatarak.id_rak;
-                    document.getElementById('edit-kolom').value = tatarak.kolom;
-                    document.getElementById('edit-baris').value = tatarak.baris;
-
-                    new bootstrap.Modal(document.getElementById('modalEditTatarak')).show();
-              a  } catch (err) {
-                    alert('Error loading data: ' + err.message);
-                }
-            });
-
             // =====================================================
             // UPDATE BUTTON STATES
             // =====================================================
@@ -451,6 +428,7 @@
                 const selected = document.querySelectorAll('.select-peminjaman:checked');
                 const count = selected.length;
 
+                // Reset all buttons to disabled if nothing selected
                 if (count === 0) {
                     if (btnReturn) btnReturn.disabled = true;
                     if (btnExtend) btnExtend.disabled = true;
@@ -458,27 +436,46 @@
                     return;
                 }
 
+                // ✅ FIX: Get status from data-status attribute
                 const statuses = Array.from(selected).map(cb => {
-                    const status = cb.closest('tr').getAttribute('data-status');
-                    // ✅ Handle empty status as Dipinjam
-                    return status || 'Dipinjam';
+                    const tr = cb.closest('tr');
+                    const status = tr.getAttribute('data-status');
+
+                    // Handle empty or null status as 'Dipinjam'
+                    if (!status || status.trim() === '') {
+                        return 'Dipinjam';
+                    }
+
+                    return status.trim();
                 });
 
-                // ✅ Allow return for Dipinjam and Diperpanjang (including empty status treated as Dipinjam)
+                console.log('Selected statuses:', statuses); // Debug
+
+                // ✅ RETURN: Allow for Dipinjam and Diperpanjang
                 const canReturn = statuses.every(s =>
-                    s === 'Dipinjam' || s === 'Diperpanjang' || s === ''
+                    s === 'Dipinjam' || s === 'Diperpanjang'
                 );
-                if (btnReturn) btnReturn.disabled = !canReturn;
 
+                if (btnReturn) {
+                    btnReturn.disabled = !canReturn;
+                    console.log('Can return:', canReturn); // Debug
+                }
 
+                // ✅ EXTEND: Only 1 transaction, must be Dipinjam or Diperpanjang
                 const canExtend = count === 1 && (
                     statuses[0] === 'Dipinjam' ||
-                    statuses[0] === 'Diperpanjang' ||
-                    statuses[0] === '' // Treat empty as Dipinjam
+                    statuses[0] === 'Diperpanjang'
                 );
-                if (btnExtend) btnExtend.disabled = !canExtend;
 
-                if (btnDelete) btnDelete.disabled = false;
+                if (btnExtend) {
+                    btnExtend.disabled = !canExtend;
+                    console.log('Can extend:', canExtend); // Debug
+                }
+
+                // ✅ DELETE: Always enabled if something is selected
+                if (btnDelete) {
+                    btnDelete.disabled = false;
+                }
             }
 
             // =====================================================

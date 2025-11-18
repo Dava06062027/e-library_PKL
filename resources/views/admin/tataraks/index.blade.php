@@ -185,7 +185,7 @@
                     <th>Rak</th>
                     <th>Posisi</th>
                     <th>Petugas</th>
-                    <th>Modified Date</th>
+                    <th>Tanggal Penataan</th>
                 </tr>
                 </thead>
                 <tbody id="tataraks-rows">
@@ -198,6 +198,7 @@
         <div id="pagination" class="mt-3"></div>
 
         <!-- Include Modals -->
+        @include('admin.tataraks.partials.detail-modal')
         @include('admin.tataraks.partials.new-modal')
         @include('admin.tataraks.partials.edit-modal')
         @include('admin.tataraks.partials.bulk-modal')
@@ -233,7 +234,52 @@
                         cb.removeEventListener('change', toggleButtons);
                         cb.addEventListener('change', toggleButtons);
                     });
+
+                    // DETAIL BUTTON HANDLER
+                    document.querySelectorAll('.btn-detail-tatarak').forEach(btn => {
+                        btn.addEventListener('click', async function() {
+                            const id = this.dataset.id;
+                            await showDetail(id);
+                        });
+                    });
                 };
+
+                // SHOW DETAIL FUNCTION
+                async function showDetail(id) {
+                    try {
+                        const res = await fetch(`{{ url('admin/tataraks') }}/${id}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+
+                        if (!res.ok) throw new Error('Failed to load');
+
+                        const tatarak = await res.json();
+
+                        // Populate detail modal
+                        document.getElementById('detail-judul-buku').textContent = tatarak.buku_item?.buku?.judul || 'N/A';
+                        document.getElementById('detail-barcode').innerHTML = `<span class="badge bg-secondary">${tatarak.buku_item?.barcode || 'N/A'}</span>`;
+                        document.getElementById('detail-pengarang').textContent = tatarak.buku_item?.buku?.pengarang || 'N/A';
+                        document.getElementById('detail-kondisi').textContent = tatarak.buku_item?.kondisi || 'N/A';
+                        document.getElementById('detail-status').textContent = tatarak.buku_item?.status || 'N/A';
+
+                        document.getElementById('detail-nama-rak').innerHTML = `<span class="badge bg-primary">${tatarak.rak?.nama || 'N/A'}</span>`;
+                        document.getElementById('detail-lokasi').textContent = tatarak.rak?.lokasi?.ruang || 'N/A';
+                        document.getElementById('detail-posisi').textContent = `Kolom ${tatarak.kolom}, Baris ${tatarak.baris}`;
+                        document.getElementById('detail-kapasitas').textContent = tatarak.rak?.kapasitas || 'N/A';
+                        document.getElementById('detail-ukuran').textContent = `${tatarak.rak?.kolom || 0} x ${tatarak.rak?.baris || 0}`;
+
+                        document.getElementById('detail-petugas').textContent = tatarak.user?.name || 'Unknown';
+                        document.getElementById('detail-role').textContent = tatarak.user?.role || '';
+                        document.getElementById('detail-created-at').textContent = tatarak.created_at ? new Date(tatarak.created_at).toLocaleString('id-ID') : '-';
+                        document.getElementById('detail-updated-at').textContent = tatarak.updated_at ? new Date(tatarak.updated_at).toLocaleString('id-ID') : '-';
+
+                        new bootstrap.Modal(document.getElementById('modalDetailTatarak')).show();
+
+                    } catch (err) {
+                        console.error('Detail error:', err);
+                        alert('Error: ' + err.message);
+                    }
+                }
 
                 const fetchTataraks = async (filters = {}) => {
                     const url = new URL('{{ route('admin.tataraks.index') }}', window.location.origin);
@@ -263,10 +309,8 @@
                 window.fetchTataraks = fetchTataraks;
                 window.currentFilters = currentFilters;
 
-                // REFRESH
                 $btnRefresh.addEventListener('click', () => fetchTataraks(currentFilters));
 
-                // SEARCH with debounce
                 let searchTimeout;
                 $searchInput.addEventListener('input', (e) => {
                     clearTimeout(searchTimeout);
@@ -276,7 +320,6 @@
                     }, 500);
                 });
 
-                // FILTER
                 $btnFilter.addEventListener('click', () => $filterDropdown.classList.toggle('show'));
 
                 document.addEventListener('click', (e) => {
@@ -292,7 +335,6 @@
                     $filterDropdown.classList.remove('show');
                 });
 
-                // SELECT ALL
                 $selectAll.addEventListener('change', (e) => {
                     document.querySelectorAll('.select-tatarak').forEach(cb => cb.checked = e.target.checked);
                     toggleButtons();
@@ -313,6 +355,9 @@
                         if (!res.ok) throw new Error('Failed to load');
 
                         const tatarak = await res.json();
+
+                        document.getElementById('current-buku-info').textContent = `${tatarak.buku_item?.buku?.judul || 'N/A'} (${tatarak.buku_item?.barcode || 'N/A'})`;
+                        document.getElementById('current-rak-info').textContent = `${tatarak.rak?.nama || 'N/A'} - Kol ${tatarak.kolom}, Bar ${tatarak.baris}`;
 
                         document.getElementById('edit-id').value = tatarak.id;
                         document.getElementById('edit-id_buku_item').value = tatarak.id_buku_item;
@@ -405,9 +450,11 @@
             })();
         </script>
 
+        <!-- jQuery & DataTables -->
         <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 
+        <!-- ===== BULK TATARAK SCRIPT ===== -->
         <script>
             $(document).ready(function() {
                 let selectedBooksData = {};
@@ -433,23 +480,27 @@
                         const data = selectedBooksData[bukuId];
                         totalEksemplar += data.eksemplar.length;
                         html += `
-                    <div class="card mb-2">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <h6 class="mb-1">${data.judul}</h6>
-                                    <small class="text-muted">${data.eksemplar.length} eksemplar</small>
-                                    <div class="mt-2">
-                                        ${data.eksemplarDetails.map(e => `<span class="badge bg-secondary me-1">${e.barcode}</span>`).join('')}
-                                    </div>
+                <div class="card mb-2 border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1 fw-bold">${data.judul}</h6>
+                                <small class="text-muted">
+                                    <i class="bi bi-book me-1"></i>${data.eksemplar.length} eksemplar dipilih
+                                </small>
+                                <div class="mt-2">
+                                    ${data.eksemplarDetails.map(e => `
+                                        <span class="badge bg-secondary me-1 mb-1">${e.barcode}</span>
+                                    `).join('')}
                                 </div>
-                                <button type="button" class="btn btn-sm btn-danger btn-remove-buku" data-buku-id="${bukuId}">
-                                    <i class="bi bi-trash"></i>
-                                </button>
                             </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-buku" data-buku-id="${bukuId}">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
                     </div>
-                `;
+                </div>
+            `;
                     });
 
                     list.html(html);
@@ -457,8 +508,11 @@
                 }
 
                 $(document).on('click', '.btn-remove-buku', function() {
-                    delete selectedBooksData[$(this).data('buku-id')];
-                    updateSelectedBooksDisplay();
+                    const bukuId = $(this).data('buku-id');
+                    if (confirm('Hapus buku ini dari pilihan?')) {
+                        delete selectedBooksData[bukuId];
+                        updateSelectedBooksDisplay();
+                    }
                 });
 
                 $('#modalSelectBuku').on('shown.bs.modal', function () {
@@ -467,24 +521,47 @@
 
                     if (!bukuTable) {
                         bukuTable = $('#buku-table').DataTable({
-                            ajax: '{{ route('admin.tataraks.searchBukuDatatable') }}',
+                            ajax: {
+                                url: '{{ route('admin.tataraks.searchBukuDatatable') }}',
+                                type: 'GET',
+                                error: function(xhr, error, code) {
+                                    console.error('DataTable error:', error, code);
+                                    alert('Error loading data: ' + error);
+                                }
+                            },
                             serverSide: true,
                             processing: true,
                             columns: [
-                                { data: 'id' },
+                                { data: 'id', width: '50px' },
                                 { data: 'judul' },
                                 { data: 'pengarang' },
-                                { data: 'tahun_terbit' },
-                                { data: 'eksemplar_tersedia' },
+                                { data: 'tahun_terbit', width: '100px' },
+                                { data: 'eksemplar_tersedia', width: '120px' },
                                 {
                                     data: null,
                                     orderable: false,
-                                    render: (data) => `<button class="btn btn-primary btn-sm btn-pilih-buku" data-id="${data.id}" data-judul="${data.judul}">Pilih</button>`
+                                    width: '80px',
+                                    render: (data) => {
+                                        if (data.eksemplar_tersedia > 0) {
+                                            return `<button class="btn btn-primary btn-sm btn-pilih-buku" data-id="${data.id}" data-judul="${data.judul}">
+                                    <i class="bi bi-check2"></i> Pilih
+                                </button>`;
+                                        } else {
+                                            return `<button class="btn btn-secondary btn-sm" disabled>
+                                    <i class="bi bi-x"></i> Habis
+                                </button>`;
+                                        }
+                                    }
                                 }
                             ],
                             searching: false,
                             paging: true,
                             pageLength: 10,
+                            language: {
+                                processing: '<i class="bi bi-hourglass-split"></i> Loading...',
+                                emptyTable: 'Tidak ada buku tersedia',
+                                zeroRecords: 'Tidak ada hasil ditemukan'
+                            }
                         });
                     }
                 });
@@ -492,8 +569,12 @@
                 let searchTimeout;
                 $('#search-buku-modal').on('input', function () {
                     clearTimeout(searchTimeout);
+                    const searchVal = this.value;
                     searchTimeout = setTimeout(() => {
-                        if (bukuTable) bukuTable.search(this.value).draw();
+                        if (bukuTable) {
+                            console.log('Searching:', searchVal);
+                            bukuTable.search(searchVal).draw();
+                        }
                     }, 500);
                 });
 
@@ -516,35 +597,40 @@
                     $('#section-pilih-judul').hide();
                     $('#section-pilih-eksemplar').show();
 
+                    // Show loading
+                    const tbody = $('#eksemplar-table-body');
+                    tbody.html('<tr><td colspan="5" class="text-center"><i class="bi bi-hourglass-split"></i> Loading...</td></tr>');
+
                     try {
                         const res = await fetch(`${BASE_URL}/available-eksemplar/${bukuId}`);
                         if (!res.ok) throw new Error('Failed to load');
 
                         const eksemplarList = await res.json();
-                        const tbody = $('#eksemplar-table-body');
                         tbody.empty();
 
                         if (eksemplarList.length === 0) {
-                            tbody.html('<tr><td colspan="5" class="text-center text-muted">Tidak ada eksemplar</td></tr>');
+                            tbody.html('<tr><td colspan="5" class="text-center text-muted"><i class="bi bi-inbox"></i> Tidak ada eksemplar tersedia</td></tr>');
                             return;
                         }
 
                         eksemplarList.forEach(eks => {
                             tbody.append(`
-                        <tr>
-                            <td><input type="checkbox" class="form-check-input select-eksemplar" value="${eks.id}"
-                                data-barcode="${eks.barcode}" data-kondisi="${eks.kondisi}"
-                                data-status="${eks.status}" data-sumber="${eks.sumber}"></td>
-                            <td>${eks.barcode}</td>
-                            <td>${eks.kondisi}</td>
-                            <td>${eks.status}</td>
-                            <td>${eks.sumber}</td>
-                        </tr>
-                    `);
+                    <tr>
+                        <td><input type="checkbox" class="form-check-input select-eksemplar" value="${eks.id}"
+                            data-barcode="${eks.barcode}" data-kondisi="${eks.kondisi}"
+                            data-status="${eks.status}" data-sumber="${eks.sumber}"></td>
+                        <td><span class="badge bg-secondary">${eks.barcode}</span></td>
+                        <td>${eks.kondisi}</td>
+                        <td><span class="badge bg-success">${eks.status}</span></td>
+                        <td>${eks.sumber}</td>
+                    </tr>
+                `);
                         });
 
                         updateSelectedEksemplarCount();
                     } catch (err) {
+                        console.error('Error:', err);
+                        tbody.html('<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>');
                         alert('Error: ' + err.message);
                     }
                 });
@@ -563,15 +649,16 @@
                 $(document).on('change', '.select-eksemplar', updateSelectedEksemplarCount);
 
                 function updateSelectedEksemplarCount() {
-                    $('#selected-eksemplar-count').text($('.select-eksemplar:checked').length);
+                    const count = $('.select-eksemplar:checked').length;
+                    $('#selected-eksemplar-count').text(count);
                 }
 
                 $('#btn-apply-range').on('click', function() {
                     const rangeInput = $('#range-barcode').val().trim();
-                    if (!rangeInput) return alert('Masukkan range!');
+                    if (!rangeInput) return alert('Masukkan range barcode!');
 
                     const parts = rangeInput.split('-');
-                    if (parts.length !== 2) return alert('Format salah!');
+                    if (parts.length !== 2) return alert('Format salah! Gunakan: BARCODE_AWAL-BARCODE_AKHIR');
 
                     const [start, end] = parts.map(p => p.trim());
                     $('.select-eksemplar').prop('checked', false);
@@ -585,7 +672,7 @@
                         }
                     });
 
-                    if (!found) alert('Tidak ada dalam range');
+                    if (!found) alert('Tidak ada barcode dalam range tersebut');
                     updateSelectedEksemplarCount();
                 });
 
@@ -604,7 +691,7 @@
                         });
                     });
 
-                    if (selectedEks.length === 0) return alert('Pilih minimal 1!');
+                    if (selectedEks.length === 0) return alert('Pilih minimal 1 eksemplar!');
 
                     let kategoriId = null;
                     try {
@@ -613,7 +700,9 @@
                             const data = await res.json();
                             kategoriId = data.id_kategori;
                         }
-                    } catch(err) {}
+                    } catch(err) {
+                        console.error('Error getting kategori:', err);
+                    }
 
                     selectedBooksData[currentBukuId] = {
                         judul: $('#selected-judul-text').text(),
@@ -643,31 +732,36 @@
                     select.empty();
 
                     if (kategoriIds.size === 0) {
-                        select.append('<option value="">-- Pilih Buku Dulu --</option>');
+                        select.append('<option value="">-- Pilih Buku Terlebih Dahulu --</option>');
                         return;
                     }
 
                     if (kategoriIds.size > 1) {
-                        alert('Peringatan: Kategori berbeda!');
+                        alert('⚠️ Peringatan: Buku yang dipilih memiliki kategori berbeda!');
                     }
 
                     try {
                         const res = await fetch(`${BASE_URL}/rak-by-kategori?kategoris=${Array.from(kategoriIds).join(',')}`);
-                        if (!res.ok) throw new Error('Failed');
+                        if (!res.ok) throw new Error('Failed to load rak');
 
                         const raks = await res.json();
                         select.append('<option value="">-- Pilih Rak --</option>');
 
                         if (raks.length === 0) {
-                            select.append('<option disabled>Tidak ada rak</option>');
+                            select.append('<option disabled>Tidak ada rak tersedia untuk kategori ini</option>');
                             return;
                         }
 
                         raks.forEach(rak => {
-                            select.append(`<option value="${rak.id}">${rak.nama} (${rak.kapasitas}, ${rak.kolom}x${rak.baris}) - ${rak.kategori_nama}</option>`);
+                            select.append(`
+                    <option value="${rak.id}">
+                        ${rak.nama} - ${rak.kategori_nama} (${rak.kapasitas} slots, ${rak.kolom}x${rak.baris})
+                    </option>
+                `);
                         });
                     } catch(err) {
-                        alert('Error loading rak');
+                        console.error('Error loading rak:', err);
+                        alert('Error loading rak: ' + err.message);
                     }
                 }
 
@@ -677,10 +771,10 @@
                     const allEksemplarIds = [];
                     Object.values(selectedBooksData).forEach(data => allEksemplarIds.push(...data.eksemplar));
 
-                    if (allEksemplarIds.length === 0) return alert('Pilih eksemplar!');
+                    if (allEksemplarIds.length === 0) return alert('Pilih minimal 1 eksemplar dari buku!');
 
                     const idRak = $('#select-rak').val();
-                    if (!idRak) return alert('Pilih rak!');
+                    if (!idRak) return alert('Pilih rak tujuan!');
 
                     const positions = [];
                     for (let i = 0; i < allEksemplarIds.length; i++) {
@@ -706,7 +800,7 @@
                         });
 
                         const data = await res.json();
-                        if (!res.ok) throw new Error(data.error || data.message);
+                        if (!res.ok) throw new Error(data.error || data.message || 'Failed');
 
                         $('#modalBulkTatarak').modal('hide');
 
@@ -714,14 +808,15 @@
                             window.fetchTataraks(window.currentFilters || {});
                         }
 
-                        alert(data.message || 'Berhasil!');
+                        alert('✅ ' + (data.message || 'Bulk penataan berhasil!'));
 
                         selectedBooksData = {};
                         updateSelectedBooksDisplay();
                         $('#form-bulk-tatarak')[0].reset();
 
                     } catch (err) {
-                        alert(err.message);
+                        console.error('Submit error:', err);
+                        alert('❌ ' + err.message);
                     }
                 });
 
@@ -733,6 +828,10 @@
                     $('.select-eksemplar').prop('checked', false);
                     $('#select-all-eksemplar').prop('checked', false);
                     updateSelectedEksemplarCount();
+                });
+
+                $('#modalBulkTatarak').on('hidden.bs.modal', function() {
+                    // Don't reset selectedBooksData to allow user to go back
                 });
             });
         </script>

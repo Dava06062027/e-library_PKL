@@ -14,14 +14,14 @@
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <div class="position-relative" style="width: 300px;">
                             <i class="bi bi-search position-absolute start-0 top-50 translate-middle-y ms-2 text-secondary"></i>
-                            <input id="search-buku-modal" type="text" class="form-control search-input" placeholder="Search by judul or pengarang">
+                            <input id="search-buku-modal" type="text" class="form-control search-input" placeholder="Search by judul or pengarang" style="padding-left: 32px;">
                         </div>
                         <div class="position-relative">
                             <button id="btn-filter-buku" type="button" class="btn btn-m365 d-flex align-items-center gap-2">
                                 <i class="bi bi-funnel"></i>
                                 <span>Add filter</span>
                             </button>
-                            <div id="filter-dropdown-buku" class="filter-dropdown">
+                            <div id="filter-dropdown-buku" class="filter-dropdown" style="display: none;">
                                 <div class="mb-2">
                                     <label>Tahun Terbit</label>
                                     <input type="number" id="filter-tahun" class="form-control" placeholder="YYYY">
@@ -54,7 +54,7 @@
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
                             <h6 class="fw-bold mb-1">2. Pilih Eksemplar dari: <span id="selected-judul-text"></span></h6>
-                            <small class="text-muted">Pilih eksemplar yang akan ditata</small>
+                            <small class="text-muted">Pilih eksemplar yang akan dipinjam (hanya Tersedia)</small>
                         </div>
                         <button type="button" id="btn-back-to-judul" class="btn btn-secondary btn-sm">
                             <i class="bi bi-arrow-left"></i> Kembali ke Daftar Buku
@@ -88,7 +88,7 @@
                             </tr>
                             </thead>
                             <tbody id="eksemplar-table-body">
-                            <!-- Will be populated dynamically -->
+                            <!-- Populated dynamically -->
                             </tbody>
                         </table>
                     </div>
@@ -103,3 +103,21 @@
         </div>
     </div>
 </div>
+
+<style>
+    .filter-dropdown {
+        position: absolute;
+        background: white;
+        border: 2px solid #d1d1d1;
+        border-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 15px;
+        min-width: 280px;
+        z-index: 1000;
+        top: 100%;
+        margin-top: 5px;
+    }
+    .filter-dropdown.show {
+        display: block !important;
+    }
+</style>
