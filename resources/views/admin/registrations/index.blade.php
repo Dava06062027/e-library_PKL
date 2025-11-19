@@ -66,15 +66,17 @@
     </style>
 
     <div class="bg-m365-white min-vh-100 p-4">
+        <!-- Header -->
+        <div class="mb-4">
+            <h3 class="mb-1"><i class="bi bi-person-check me-2"></i>Pendaftaran Member</h3>
+            <p class="text-muted mb-0">Kelola verifikasi pendaftaran member baru</p>
+        </div>
+
         <!-- Toolbar -->
         <div class="d-flex align-items-center gap-2 mb-3">
             <button id="btn-review" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
                 <i class="bi bi-eye"></i>
                 <span>Review</span>
-            </button>
-            <button id="btn-approve" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
-                <i class="bi bi-check-circle"></i>
-                <span>Approve</span>
             </button>
             <button id="btn-reject" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
                 <i class="bi bi-x-circle"></i>
@@ -103,11 +105,7 @@
                         <label class="form-label small fw-semibold">Status Pendaftaran</label>
                         <select id="filter-status" class="form-select form-select-sm">
                             <option value="">Semua Status</option>
-                            <option value="pending_verification">Pending Verifikasi</option>
-                            <option value="email_verified">Email Terverifikasi</option>
-                            <option value="under_review">Dalam Review</option>
-                            <option value="document_requested">Butuh Dokumen</option>
-                            <option value="pending_approval">Pending Approval</option>
+                            <option value="pending">Menunggu Verifikasi</option>
                             <option value="approved">Disetujui</option>
                             <option value="rejected">Ditolak</option>
                         </select>
@@ -169,7 +167,6 @@
             const $pagination = document.getElementById('registration-pagination');
             const $search = document.getElementById('search-registration');
             const $btnReview = document.getElementById('btn-review');
-            const $btnApprove = document.getElementById('btn-approve');
             const $btnReject = document.getElementById('btn-reject');
             const $btnRefresh = document.getElementById('btn-refresh');
             const $btnFilter = document.getElementById('btn-filter');
@@ -302,7 +299,6 @@
             function toggleButtons(){
                 const count = getSelectedIds().length;
                 $btnReview.disabled = (count !== 1);
-                $btnApprove.disabled = (count === 0);
                 $btnReject.disabled = (count === 0);
             }
 
@@ -353,52 +349,22 @@
                     document.getElementById('detail-name').textContent = reg.name;
                     document.getElementById('detail-email').textContent = reg.email;
                     document.getElementById('detail-phone').textContent = reg.phone || '-';
+                    document.getElementById('detail-birth-date').textContent = reg.birth_date || '-';
                     document.getElementById('detail-address').textContent = reg.address;
                     document.getElementById('detail-status').textContent = reg.status;
                     document.getElementById('detail-temp-card').textContent = reg.temp_card_number || '-';
+                    document.getElementById('detail-created-at').textContent = reg.created_at || '-';
 
-                    // Documents
-                    if (reg.id_document) {
-                        document.getElementById('detail-id-doc').href = `/storage/${reg.id_document}`;
-                        document.getElementById('detail-id-doc').style.display = 'inline';
-                    }
-                    if (reg.address_proof) {
-                        document.getElementById('detail-address-doc').href = `/storage/${reg.address_proof}`;
-                        document.getElementById('detail-address-doc').style.display = 'inline';
-                    }
+                    // Reset forms
+                    document.getElementById('form-approve-action').style.display = 'none';
+                    document.getElementById('form-reject-action').style.display = 'none';
+                    document.getElementById('action-buttons').style.display = 'block';
 
                     new bootstrap.Modal(document.getElementById('modalDetailRegistration')).show();
                 } catch (err) {
                     alert('Failed to load details: ' + err.message);
                 }
             }
-
-            // Bulk Approve
-            $btnApprove.addEventListener('click', async function(){
-                const ids = getSelectedIds();
-                if (!ids.length) return alert('Pilih pendaftaran terlebih dahulu');
-                if (!confirm(`Approve ${ids.length} pendaftaran?`)) return;
-
-                try {
-                    const res = await fetch("{{ route('admin.registrations.bulkApprove') }}", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrf,
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({ ids })
-                    });
-
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Approval failed');
-
-                    fetchRegistrations();
-                    alert(data.message);
-                } catch (err) {
-                    alert(err.message);
-                }
-            });
 
             // Bulk Reject
             $btnReject.addEventListener('click', async function(){

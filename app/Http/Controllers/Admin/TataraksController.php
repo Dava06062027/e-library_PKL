@@ -8,9 +8,12 @@ use App\Models\Rak;
 use App\Models\Tatarak;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TataraksController extends Controller
 {
+    const MAX_BOOKS_PER_CELL = 10; // Maksimal 10 buku per cell
+
     public function index(Request $request)
     {
         $query = Tatarak::with(['bukuItem.buku', 'rak.lokasi', 'user']);
@@ -29,12 +32,10 @@ class TataraksController extends Controller
             });
         }
 
-        // Filter by rak
         if ($request->has('rak') && $request->rak !== '') {
             $query->where('id_rak', $request->rak);
         }
 
-        // Filter by role
         if ($request->has('role') && $request->role !== '') {
             $role = $request->role;
             $query->whereHas('user', function($q) use ($role) {
@@ -57,7 +58,7 @@ class TataraksController extends Controller
 
     public function show(Tatarak $tatarak)
     {
-        return response()->json($tatarak->load(['bukuItem.buku', 'rak', 'user']));
+        return response()->json($tatarak->load(['bukuItem.buku', 'rak.lokasi', 'user']));
     }
 
     public function store(Request $request)
@@ -71,7 +72,36 @@ class TataraksController extends Controller
 
         $validated['id_user'] = Auth::id();
 
+        // Validasi kapasitas cell
+        $cellCount = Tatarak::where('id_rak', $validated['id_rak'])
+            ->where('kolom', $validated['kolom'])
+            ->where('baris', $validated['baris'])
+            ->count();
+
+        if ($cellCount >= self::MAX_BOOKS_PER_CELL) {
+            return response()->json([
+                'error' => "Cell sudah penuh (maksimal " . self::MAX_BOOKS_PER_CELL . " eksemplar)"
+            ], 400);
+        }
+
+        // Validasi: Satu baris hanya untuk 1 judul
+        $bukuItem = BukuItem::with('buku')->find($validated['id_buku_item']);
+        $existingInRow = Tatarak::where('id_rak', $validated['id_rak'])
+            ->where('baris', $validated['baris'])
+            ->with('bukuItem.buku')
+            ->get();
+
+        if ($existingInRow->isNotEmpty()) {
+            $existingJudul = $existingInRow->first()->bukuItem->buku->judul;
+            if ($existingJudul !== $bukuItem->buku->judul) {
+                return response()->json([
+                    'error' => "Baris {$validated['baris']} sudah berisi buku dengan judul '{$existingJudul}'. Gunakan baris lain untuk judul berbeda."
+                ], 400);
+            }
+        }
+
         $tatarak = Tatarak::create($validated);
+        BukuItem::where('id', $validated['id_buku_item'])->update(['id_rak' => $validated['id_rak']]);
 
         return response()->json(['message' => 'Penataan berhasil dicatat', 'tatarak' => $tatarak]);
     }
@@ -89,15 +119,41 @@ class TataraksController extends Controller
             'baris' => 'required|integer|min:1',
         ]);
 
-        // Jika buku_item berubah, kembalikan id_rak lama ke NULL
+        // Validasi kapasitas cell (exclude current record)
+        $cellCount = Tatarak::where('id_rak', $validated['id_rak'])
+            ->where('kolom', $validated['kolom'])
+            ->where('baris', $validated['baris'])
+            ->where('id', '!=', $tatarak->id)
+            ->count();
+
+        if ($cellCount >= self::MAX_BOOKS_PER_CELL) {
+            return response()->json([
+                'error' => "Cell sudah penuh (maksimal " . self::MAX_BOOKS_PER_CELL . " eksemplar)"
+            ], 400);
+        }
+
+        // Validasi: Satu baris hanya untuk 1 judul
+        $bukuItem = BukuItem::with('buku')->find($validated['id_buku_item']);
+        $existingInRow = Tatarak::where('id_rak', $validated['id_rak'])
+            ->where('baris', $validated['baris'])
+            ->where('id', '!=', $tatarak->id)
+            ->with('bukuItem.buku')
+            ->get();
+
+        if ($existingInRow->isNotEmpty()) {
+            $existingJudul = $existingInRow->first()->bukuItem->buku->judul;
+            if ($existingJudul !== $bukuItem->buku->judul) {
+                return response()->json([
+                    'error' => "Baris {$validated['baris']} sudah berisi buku dengan judul '{$existingJudul}'. Gunakan baris lain untuk judul berbeda."
+                ], 400);
+            }
+        }
+
         if ($tatarak->id_buku_item !== $validated['id_buku_item']) {
             BukuItem::where('id', $tatarak->id_buku_item)->update(['id_rak' => null]);
         }
 
-        // Update tatarak
         $tatarak->update($validated);
-
-        // Update id_rak di BukuItem baru
         BukuItem::where('id', $validated['id_buku_item'])->update(['id_rak' => $validated['id_rak']]);
 
         return response()->json(['message' => 'Penataan berhasil diperbarui']);
@@ -109,9 +165,7 @@ class TataraksController extends Controller
             return response()->json(['error' => 'Hanya Admin yang bisa hapus transaksi'], 403);
         }
 
-        // Kembalikan id_rak di BukuItem menjadi NULL
         BukuItem::where('id', $tatarak->id_buku_item)->update(['id_rak' => null]);
-
         $tatarak->delete();
 
         return response()->json(['message' => 'Penataan dihapus dan eksemplar dikembalikan']);
@@ -129,14 +183,10 @@ class TataraksController extends Controller
             return response()->json(['error' => 'Hanya Admin yang bisa hapus transaksi'], 403);
         }
 
-        // Ambil id_buku_item dari tatarak yang akan dihapus
         $tataraks = Tatarak::whereIn('id', $ids)->get();
         $bukuItemIds = $tataraks->pluck('id_buku_item')->toArray();
 
-        // Kembalikan id_rak menjadi NULL
         BukuItem::whereIn('id', $bukuItemIds)->update(['id_rak' => null]);
-
-        // Hapus tatarak
         Tatarak::whereIn('id', $ids)->delete();
 
         return response()->json(['message' => count($ids) . ' penataan dihapus dan eksemplar dikembalikan']);
@@ -159,16 +209,11 @@ class TataraksController extends Controller
         return response()->json($availableItems);
     }
 
-
-    /**
-     * Get available eksemplar untuk buku tertentu (belum ditata)
-     */
     public function availableEksemplarByBuku($id_buku)
     {
-        // Ambil eksemplar dari buku ini yang belum ditata (id_rak masih NULL) dan statusnya "Tersedia"
         $availableItems = BukuItem::where('id_buku', $id_buku)
-            ->whereNull('id_rak') // Yang belum ditata
-            ->where('status', 'Tersedia') // Hanya yang tersedia
+            ->whereNull('id_rak')
+            ->where('status', 'Tersedia')
             ->get()
             ->map(function($item) {
                 return [
@@ -183,9 +228,6 @@ class TataraksController extends Controller
         return response()->json($availableItems);
     }
 
-    /**
-     * Get kategori dari buku tertentu
-     */
     public function getBukuKategori($id_buku)
     {
         $buku = \App\Models\Buku::findOrFail($id_buku);
@@ -196,14 +238,10 @@ class TataraksController extends Controller
         ]);
     }
 
-    /**
-     * Get rak berdasarkan kategori
-     */
     public function getRakByKategori(Request $request)
     {
         $query = Rak::with('kategori');
 
-        // Filter berdasarkan kategori jika ada
         if ($request->has('kategoris') && $request->kategoris) {
             $kategoriIds = explode(',', $request->kategoris);
             $query->whereIn('id_kategori', $kategoriIds);
@@ -229,21 +267,23 @@ class TataraksController extends Controller
             'id_buku_items' => 'required|array|min:1',
             'id_buku_items.*' => 'required|exists:buku_items,id',
             'id_rak' => 'required|exists:raks,id',
-            'positions' => 'required|array',
-            'positions.*.kolom' => 'required|integer|min:1',
-            'positions.*.baris' => 'required|integer|min:1',
         ]);
 
         $userId = Auth::id();
-        $created = [];
         $rak = Rak::find($validated['id_rak']);
+        $bukuItems = BukuItem::with('buku')->whereIn('id', $validated['id_buku_items'])->get();
 
-        // Cek kapasitas rak global
-        if (count($validated['id_buku_items']) > $rak->kapasitas) {
-            return response()->json(['error' => 'Jumlah item melebihi kapasitas rak'], 400);
+        // Validasi: Semua eksemplar harus dari judul yang sama
+        $judulSet = $bukuItems->pluck('buku.judul')->unique();
+        if ($judulSet->count() > 1) {
+            return response()->json([
+                'error' => 'Semua eksemplar harus dari judul buku yang sama. Judul ditemukan: ' . $judulSet->implode(', ')
+            ], 400);
         }
 
-        // Validasi: Pastikan semua buku_items belum ditata (id_rak masih NULL)
+        $judul = $judulSet->first();
+
+        // Validasi: Pastikan belum ditata
         $alreadyTataed = BukuItem::whereIn('id', $validated['id_buku_items'])
             ->whereNotNull('id_rak')
             ->pluck('barcode')
@@ -255,60 +295,156 @@ class TataraksController extends Controller
             ], 400);
         }
 
-        foreach ($validated['id_buku_items'] as $index => $idBukuItem) {
-            $position = $validated['positions'][$index];
+        // Cari baris kosong atau baris dengan judul yang sama
+        $targetBaris = $this->findAvailableRow($rak->id, $judul, count($validated['id_buku_items']));
 
-            // Cek posisi overflow
-            if ($position['kolom'] > $rak->kolom || $position['baris'] > $rak->baris) {
-                return response()->json([
-                    'error' => "Posisi {$position['kolom']}/{$position['baris']} melebihi ukuran rak"
-                ], 400);
-            }
-
-            // Cek overlap posisi
-            $existing = Tatarak::where('id_rak', $validated['id_rak'])
-                ->where('kolom', $position['kolom'])
-                ->where('baris', $position['baris'])
-                ->exists();
-
-            if ($existing) {
-                return response()->json([
-                    'error' => "Posisi {$position['kolom']}/{$position['baris']} sudah terisi"
-                ], 400);
-            }
-
-            // Buat record tatarak
-            $tatarak = Tatarak::create([
-                'id_buku_item' => $idBukuItem,
-                'id_rak' => $validated['id_rak'],
-                'kolom' => $position['kolom'],
-                'baris' => $position['baris'],
-                'id_user' => $userId,
-            ]);
-            $created[] = $tatarak;
-
-            // Update id_rak di BukuItem
-            BukuItem::where('id', $idBukuItem)->update(['id_rak' => $validated['id_rak']]);
+        if (!$targetBaris) {
+            return response()->json([
+                'error' => 'Tidak ada baris yang tersedia di rak ini untuk menampung ' . count($validated['id_buku_items']) . ' eksemplar'
+            ], 400);
         }
 
-        return response()->json([
-            'message' => count($created) . ' eksemplar berhasil ditata',
-            'tataraks' => $created
-        ]);
+        $created = [];
+        $currentKolom = 1;
+        $currentBaris = $targetBaris['start_baris'];
+
+        DB::beginTransaction();
+        try {
+            foreach ($validated['id_buku_items'] as $idBukuItem) {
+                // Cek apakah cell sudah penuh
+                $cellCount = Tatarak::where('id_rak', $rak->id)
+                    ->where('kolom', $currentKolom)
+                    ->where('baris', $currentBaris)
+                    ->count();
+
+                // Jika cell penuh, pindah ke kolom berikutnya
+                if ($cellCount >= self::MAX_BOOKS_PER_CELL) {
+                    $currentKolom++;
+
+                    // Jika kolom habis, pindah ke baris berikutnya
+                    if ($currentKolom > $rak->kolom) {
+                        $currentKolom = 1;
+                        $currentBaris++;
+
+                        // Validasi: Baris baru harus masih dalam ukuran rak
+                        if ($currentBaris > $rak->baris) {
+                            throw new \Exception('Rak tidak cukup untuk menampung semua eksemplar');
+                        }
+                    }
+                }
+
+                // Buat record tatarak
+                $tatarak = Tatarak::create([
+                    'id_buku_item' => $idBukuItem,
+                    'id_rak' => $rak->id,
+                    'kolom' => $currentKolom,
+                    'baris' => $currentBaris,
+                    'id_user' => $userId,
+                ]);
+                $created[] = $tatarak;
+
+                // Update id_rak di BukuItem
+                BukuItem::where('id', $idBukuItem)->update(['id_rak' => $rak->id]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => count($created) . ' eksemplar berhasil ditata di baris ' . $targetBaris['start_baris'],
+                'tataraks' => $created
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
     }
 
+    /**
+     * Mencari baris yang tersedia untuk menampung eksemplar dengan judul tertentu
+     *
+     * @param int $rakId
+     * @param string $judul
+     * @param int $jumlahEksemplar
+     * @return array|null ['start_baris' => int, 'available_space' => int]
+     */
+    private function findAvailableRow($rakId, $judul, $jumlahEksemplar)
+    {
+        $rak = Rak::find($rakId);
+
+        // Hitung berapa cell yang dibutuhkan
+        $cellsNeeded = ceil($jumlahEksemplar / self::MAX_BOOKS_PER_CELL);
+
+        // Cek setiap baris
+        for ($baris = 1; $baris <= $rak->baris; $baris++) {
+            // Ambil semua tatarak di baris ini
+            $tataraksInRow = Tatarak::where('id_rak', $rakId)
+                ->where('baris', $baris)
+                ->with('bukuItem.buku')
+                ->get();
+
+            // Jika baris kosong, bisa digunakan
+            if ($tataraksInRow->isEmpty()) {
+                return [
+                    'start_baris' => $baris,
+                    'available_space' => $rak->kolom * self::MAX_BOOKS_PER_CELL
+                ];
+            }
+
+            // Cek apakah baris ini berisi judul yang sama
+            $existingJudul = $tataraksInRow->first()->bukuItem->buku->judul;
+            if ($existingJudul !== $judul) {
+                continue; // Skip baris ini karena judulnya berbeda
+            }
+
+            // Hitung sisa kapasitas di baris ini
+            $usedCells = 0;
+            for ($kolom = 1; $kolom <= $rak->kolom; $kolom++) {
+                $cellCount = Tatarak::where('id_rak', $rakId)
+                    ->where('kolom', $kolom)
+                    ->where('baris', $baris)
+                    ->count();
+
+                if ($cellCount > 0) {
+                    $usedCells++;
+                }
+            }
+
+            $availableCells = $rak->kolom - $usedCells;
+            $availableSpace = ($availableCells * self::MAX_BOOKS_PER_CELL);
+
+            // Tambahkan sisa ruang di cell yang belum penuh
+            foreach ($tataraksInRow as $tatarak) {
+                $cellCount = Tatarak::where('id_rak', $rakId)
+                    ->where('kolom', $tatarak->kolom)
+                    ->where('baris', $tatarak->baris)
+                    ->count();
+
+                $availableSpace += (self::MAX_BOOKS_PER_CELL - $cellCount);
+            }
+
+            if ($availableSpace >= $jumlahEksemplar) {
+                return [
+                    'start_baris' => $baris,
+                    'available_space' => $availableSpace
+                ];
+            }
+        }
+
+        return null; // Tidak ada baris yang tersedia
+    }
 
     public function searchBukuDatatable(Request $request)
     {
         $query = \App\Models\Buku::query();
 
-        // FILTER: Hanya tampilkan buku yang masih punya eksemplar belum ditata (id_rak = NULL)
+        // Filter: Hanya buku yang punya eksemplar belum ditata
         $query->whereHas('items', function($q) {
             $q->whereNull('id_rak')
                 ->where('status', 'Tersedia');
         });
 
-        // Search global (judul or pengarang)
+        // Global search
         if ($request->has('search') && !empty($request->search['value'])) {
             $search = $request->search['value'];
             $query->where(function ($q) use ($search) {
@@ -317,22 +453,20 @@ class TataraksController extends Controller
             });
         }
 
-        // Filter tahun_terbit (column 3 di table)
+        // Filter tahun_terbit
         if ($request->has('columns') && isset($request->columns[3]['search']['value']) && $request->columns[3]['search']['value']) {
             $tahun = $request->columns[3]['search']['value'];
             $query->where('tahun_terbit', $tahun);
         }
 
-        // Count total BEFORE pagination
         $total = $query->count();
 
-        // Order
+        // Ordering
         if ($request->has('order') && !empty($request->order)) {
             $orderColIndex = $request->order[0]['column'];
             $orderCol = $request->columns[$orderColIndex]['data'] ?? 'id';
             $orderDir = $request->order[0]['dir'] ?? 'asc';
 
-            // Validasi column name untuk security
             $allowedColumns = ['id', 'judul', 'pengarang', 'tahun_terbit'];
             if (in_array($orderCol, $allowedColumns)) {
                 $query->orderBy($orderCol, $orderDir);
@@ -346,7 +480,6 @@ class TataraksController extends Controller
 
         // Map data
         $data = $bukus->map(function ($buku) {
-            // Hitung jumlah eksemplar yang belum ditata (id_rak = NULL) dan tersedia
             $eksemplarTersedia = \App\Models\BukuItem::where('id_buku', $buku->id)
                 ->whereNull('id_rak')
                 ->where('status', 'Tersedia')
@@ -361,7 +494,6 @@ class TataraksController extends Controller
             ];
         });
 
-        // Return proper JSON response for DataTables
         return response()->json([
             'draw' => intval($request->input('draw', 1)),
             'recordsTotal' => $total,
@@ -369,7 +501,4 @@ class TataraksController extends Controller
             'data' => $data
         ]);
     }
-
 }
-
-

@@ -3,9 +3,9 @@
 @section('content')
     <style>
         /* Minimal custom styles untuk warna yang spesifik Microsoft 365 */
-        .bg-m365-gray { background-color: #f5f5f5 !important; } /* Lebih grey untuk table */
-        .bg-m365-white { background-color: #ffffff !important; } /* Putih bersih untuk background */
-        .border-m365 { border-color: #d1d1d1 !important; } /* Border lebih kontras */
+        .bg-m365-gray { background-color: #f5f5f5 !important; }
+        .bg-m365-white { background-color: #ffffff !important; }
+        .border-m365 { border-color: #d1d1d1 !important; }
         .text-m365-blue { color: #0078d4 !important; }
         .bg-m365-blue { background-color: #0078d4 !important; }
         .bg-m365-selected { background-color: #deecf9 !important; }
@@ -21,7 +21,6 @@
         }
         .btn-m365:disabled { color: #a19f9d; }
 
-        /* Checkbox styling - more bold and contrast */
         .form-check-input {
             border: 2px solid #605e5c !important;
             border-radius: 2px !important;
@@ -100,9 +99,6 @@
             z-index: 1000;
             display: none;
         }
-
-
-
         .filter-dropdown.show { display: block; }
     </style>
 
@@ -115,13 +111,12 @@
             <span>Copied!</span>
         </div>
 
-
-            <!-- Toolbar -->
-            <div class="d-flex align-items-center gap-2 mb-3">
-                <button id="btn-bulk-tatarak" class="btn btn-m365 d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalBulkTatarak">
-                    <i class="bi bi-plus-lg"></i>
-                    <span>Tata Buku</span>
-                </button>
+        <!-- Toolbar -->
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <button id="btn-bulk-tatarak" class="btn btn-m365 d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalBulkTatarak">
+                <i class="bi bi-plus-lg"></i>
+                <span>Tata Buku</span>
+            </button>
             <div class="vr"></div>
             <button id="btn-edit-tatarak" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
                 <i class="bi bi-pencil"></i>
@@ -150,7 +145,6 @@
                     <span>Add filter</span>
                 </button>
                 <div id="filter-dropdown" class="filter-dropdown">
-                    <!-- Form filter: by rak, role user -->
                     <div class="mb-2">
                         <label>Rak</label>
                         <select id="filter-rak" class="form-select">
@@ -199,7 +193,6 @@
 
         <!-- Include Modals -->
         @include('admin.tataraks.partials.detail-modal')
-        @include('admin.tataraks.partials.new-modal')
         @include('admin.tataraks.partials.edit-modal')
         @include('admin.tataraks.partials.bulk-modal')
         @include('admin.tataraks.partials.select-buku-modal')
@@ -235,7 +228,6 @@
                         cb.addEventListener('change', toggleButtons);
                     });
 
-                    // DETAIL BUTTON HANDLER
                     document.querySelectorAll('.btn-detail-tatarak').forEach(btn => {
                         btn.addEventListener('click', async function() {
                             const id = this.dataset.id;
@@ -244,7 +236,6 @@
                     });
                 };
 
-                // SHOW DETAIL FUNCTION
                 async function showDetail(id) {
                     try {
                         const res = await fetch(`{{ url('admin/tataraks') }}/${id}`, {
@@ -255,7 +246,6 @@
 
                         const tatarak = await res.json();
 
-                        // Populate detail modal
                         document.getElementById('detail-judul-buku').textContent = tatarak.buku_item?.buku?.judul || 'N/A';
                         document.getElementById('detail-barcode').innerHTML = `<span class="badge bg-secondary">${tatarak.buku_item?.barcode || 'N/A'}</span>`;
                         document.getElementById('detail-pengarang').textContent = tatarak.buku_item?.buku?.pengarang || 'N/A';
@@ -340,7 +330,6 @@
                     toggleButtons();
                 });
 
-                // EDIT BUTTON
                 $btnEdit.addEventListener('click', async function() {
                     const ids = getSelectedIds();
                     if (ids.length !== 1) return alert('Pilih tepat 1 penataan');
@@ -374,7 +363,6 @@
                     }
                 });
 
-                // EDIT FORM SUBMIT
                 document.getElementById('form-edit-tatarak').addEventListener('submit', async function(e) {
                     e.preventDefault();
                     const id = document.getElementById('edit-id').value;
@@ -414,7 +402,6 @@
                     }
                 });
 
-                // DELETE
                 $btnDelete.addEventListener('click', async function() {
                     const ids = getSelectedIds();
                     if (!ids.length) return alert('Pilih penataan terlebih dahulu');
@@ -457,6 +444,7 @@
         <!-- ===== BULK TATARAK SCRIPT ===== -->
         <script>
             $(document).ready(function() {
+                const MAX_BOOKS_PER_CELL = 10;
                 let selectedBooksData = {};
                 let currentBukuId = null;
                 let bukuTable = null;
@@ -480,31 +468,34 @@
                         const data = selectedBooksData[bukuId];
                         totalEksemplar += data.eksemplar.length;
                         html += `
-                <div class="card mb-2 border-0 shadow-sm">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1 fw-bold">${data.judul}</h6>
-                                <small class="text-muted">
-                                    <i class="bi bi-book me-1"></i>${data.eksemplar.length} eksemplar dipilih
-                                </small>
-                                <div class="mt-2">
-                                    ${data.eksemplarDetails.map(e => `
-                                        <span class="badge bg-secondary me-1 mb-1">${e.barcode}</span>
-                                    `).join('')}
+                            <div class="card mb-2 border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1 fw-bold">${data.judul}</h6>
+                                            <small class="text-muted">
+                                                <i class="bi bi-book me-1"></i>${data.eksemplar.length} eksemplar dipilih
+                                            </small>
+                                            <div class="mt-2">
+                                                ${data.eksemplarDetails.map(e => `
+                                                    <span class="badge bg-secondary me-1 mb-1">${e.barcode}</span>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-buku" data-buku-id="${bukuId}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-buku" data-buku-id="${bukuId}">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
+                        `;
                     });
 
                     list.html(html);
                     $('#total-eksemplar-count').text(totalEksemplar);
+
+                    const cellsNeeded = Math.ceil(totalEksemplar / MAX_BOOKS_PER_CELL);
+                    $('#cells-needed-count').text(cellsNeeded);
                 }
 
                 $(document).on('click', '.btn-remove-buku', function() {
@@ -512,6 +503,7 @@
                     if (confirm('Hapus buku ini dari pilihan?')) {
                         delete selectedBooksData[bukuId];
                         updateSelectedBooksDisplay();
+                        updateRakDropdown();
                     }
                 });
 
@@ -524,44 +516,69 @@
                             ajax: {
                                 url: '{{ route('admin.tataraks.searchBukuDatatable') }}',
                                 type: 'GET',
+                                data: function(d) {
+                                    d.search = {
+                                        value: $('#search-buku-modal').val() || '',
+                                        regex: false
+                                    };
+                                    return d;
+                                },
                                 error: function(xhr, error, code) {
                                     console.error('DataTable error:', error, code);
                                     alert('Error loading data: ' + error);
+                                },
+                                dataSrc: function(json) {
+                                    $('#buku-count').text(json.recordsTotal);
+                                    return json.data;
                                 }
                             },
                             serverSide: true,
                             processing: true,
+                            searching: false,
                             columns: [
                                 { data: 'id', width: '50px' },
                                 { data: 'judul' },
                                 { data: 'pengarang' },
                                 { data: 'tahun_terbit', width: '100px' },
-                                { data: 'eksemplar_tersedia', width: '120px' },
+                                {
+                                    data: 'eksemplar_tersedia',
+                                    width: '120px',
+                                    render: function(data) {
+                                        return `<span class="badge bg-${data > 0 ? 'success' : 'secondary'}">${data} items</span>`;
+                                    }
+                                },
                                 {
                                     data: null,
                                     orderable: false,
-                                    width: '80px',
+                                    width: '100px',
                                     render: (data) => {
                                         if (data.eksemplar_tersedia > 0) {
                                             return `<button class="btn btn-primary btn-sm btn-pilih-buku" data-id="${data.id}" data-judul="${data.judul}">
-                                    <i class="bi bi-check2"></i> Pilih
-                                </button>`;
+                                                <i class="bi bi-check2"></i> Pilih
+                                            </button>`;
                                         } else {
                                             return `<button class="btn btn-secondary btn-sm" disabled>
-                                    <i class="bi bi-x"></i> Habis
-                                </button>`;
+                                                <i class="bi bi-x"></i> Habis
+                                            </button>`;
                                         }
                                     }
                                 }
                             ],
-                            searching: false,
                             paging: true,
                             pageLength: 10,
+                            lengthChange: false,
                             language: {
-                                processing: '<i class="bi bi-hourglass-split"></i> Loading...',
+                                processing: '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>',
                                 emptyTable: 'Tidak ada buku tersedia',
-                                zeroRecords: 'Tidak ada hasil ditemukan'
-                            }
+                                zeroRecords: 'Tidak ada hasil ditemukan',
+                                paginate: {
+                                    first: 'First',
+                                    last: 'Last',
+                                    next: 'Next',
+                                    previous: 'Previous'
+                                }
+                            },
+                            order: [[0, 'desc']]
                         });
                     }
                 });
@@ -572,21 +589,42 @@
                     const searchVal = this.value;
                     searchTimeout = setTimeout(() => {
                         if (bukuTable) {
-                            console.log('Searching:', searchVal);
-                            bukuTable.search(searchVal).draw();
+                            console.log('Searching for:', searchVal);
+                            bukuTable.ajax.reload();
                         }
                     }, 500);
+                });
+
+                $('#btn-filter-buku').on('click', function(e) {
+                    e.stopPropagation();
+                    $('#filter-dropdown-buku').toggleClass('show');
+                });
+
+                $(document).on('click', function(e) {
+                    if (!$(e.target).closest('#btn-filter-buku, #filter-dropdown-buku').length) {
+                        $('#filter-dropdown-buku').removeClass('show');
+                    }
                 });
 
                 $('#btn-apply-filter-buku').on('click', function () {
                     const tahun = $('#filter-tahun').val();
                     if (bukuTable) {
-                        bukuTable.column(3).search(tahun ? '^' + tahun + '$' : '', true, false).draw();
+                        if (tahun) {
+                            bukuTable.column(3).search('^' + tahun + '$', true, false).draw();
+                        } else {
+                            bukuTable.column(3).search('').draw();
+                        }
                     }
                     $('#filter-dropdown-buku').removeClass('show');
                 });
 
-                $('#btn-filter-buku').on('click', () => $('#filter-dropdown-buku').toggleClass('show'));
+                $('#btn-clear-filter-buku').on('click', function() {
+                    $('#filter-tahun').val('');
+                    if (bukuTable) {
+                        bukuTable.column(3).search('').draw();
+                    }
+                    $('#filter-dropdown-buku').removeClass('show');
+                });
 
                 $(document).on('click', '.btn-pilih-buku', async function () {
                     const bukuId = $(this).data('id');
@@ -597,41 +635,39 @@
                     $('#section-pilih-judul').hide();
                     $('#section-pilih-eksemplar').show();
 
-                    // Show loading
                     const tbody = $('#eksemplar-table-body');
-                    tbody.html('<tr><td colspan="5" class="text-center"><i class="bi bi-hourglass-split"></i> Loading...</td></tr>');
+                    tbody.html('<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 mb-0">Loading eksemplar...</p></td></tr>');
 
                     try {
                         const res = await fetch(`${BASE_URL}/available-eksemplar/${bukuId}`);
-                        if (!res.ok) throw new Error('Failed to load');
+                        if (!res.ok) throw new Error('Failed to load eksemplar');
 
                         const eksemplarList = await res.json();
                         tbody.empty();
 
                         if (eksemplarList.length === 0) {
-                            tbody.html('<tr><td colspan="5" class="text-center text-muted"><i class="bi bi-inbox"></i> Tidak ada eksemplar tersedia</td></tr>');
+                            tbody.html('<tr><td colspan="5" class="text-center text-muted py-4"><i class="bi bi-inbox fs-3"></i><p class="mt-2 mb-0">Tidak ada eksemplar tersedia</p></td></tr>');
                             return;
                         }
 
                         eksemplarList.forEach(eks => {
                             tbody.append(`
-                    <tr>
-                        <td><input type="checkbox" class="form-check-input select-eksemplar" value="${eks.id}"
-                            data-barcode="${eks.barcode}" data-kondisi="${eks.kondisi}"
-                            data-status="${eks.status}" data-sumber="${eks.sumber}"></td>
-                        <td><span class="badge bg-secondary">${eks.barcode}</span></td>
-                        <td>${eks.kondisi}</td>
-                        <td><span class="badge bg-success">${eks.status}</span></td>
-                        <td>${eks.sumber}</td>
-                    </tr>
-                `);
+                                <tr>
+                                    <td><input type="checkbox" class="form-check-input select-eksemplar" value="${eks.id}"
+                                        data-barcode="${eks.barcode}" data-kondisi="${eks.kondisi}"
+                                        data-status="${eks.status}" data-sumber="${eks.sumber}"></td>
+                                    <td><span class="badge bg-secondary">${eks.barcode}</span></td>
+                                    <td><span class="badge bg-info">${eks.kondisi}</span></td>
+                                    <td><span class="badge bg-success">${eks.status}</span></td>
+                                    <td><span class="badge bg-primary">${eks.sumber}</span></td>
+                                </tr>
+                            `);
                         });
 
                         updateSelectedEksemplarCount();
                     } catch (err) {
                         console.error('Error:', err);
-                        tbody.html('<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>');
-                        alert('Error: ' + err.message);
+                        tbody.html('<tr><td colspan="5" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle fs-3"></i><p class="mt-2 mb-0">Error loading data: ' + err.message + '</p></td></tr>');
                     }
                 });
 
@@ -651,14 +687,23 @@
                 function updateSelectedEksemplarCount() {
                     const count = $('.select-eksemplar:checked').length;
                     $('#selected-eksemplar-count').text(count);
+
+                    const total = $('.select-eksemplar').length;
+                    $('#select-all-eksemplar').prop('checked', count > 0 && count === total);
                 }
 
                 $('#btn-apply-range').on('click', function() {
                     const rangeInput = $('#range-barcode').val().trim();
-                    if (!rangeInput) return alert('Masukkan range barcode!');
+                    if (!rangeInput) {
+                        alert('Masukkan range barcode!');
+                        return;
+                    }
 
                     const parts = rangeInput.split('-');
-                    if (parts.length !== 2) return alert('Format salah! Gunakan: BARCODE_AWAL-BARCODE_AKHIR');
+                    if (parts.length !== 2) {
+                        alert('Format salah! Gunakan: BARCODE_AWAL-BARCODE_AKHIR');
+                        return;
+                    }
 
                     const [start, end] = parts.map(p => p.trim());
                     $('.select-eksemplar').prop('checked', false);
@@ -672,7 +717,9 @@
                         }
                     });
 
-                    if (!found) alert('Tidak ada barcode dalam range tersebut');
+                    if (!found) {
+                        alert('Tidak ada barcode dalam range tersebut');
+                    }
                     updateSelectedEksemplarCount();
                 });
 
@@ -691,7 +738,10 @@
                         });
                     });
 
-                    if (selectedEks.length === 0) return alert('Pilih minimal 1 eksemplar!');
+                    if (selectedEks.length === 0) {
+                        alert('Pilih minimal 1 eksemplar!');
+                        return;
+                    }
 
                     let kategoriId = null;
                     try {
@@ -729,7 +779,10 @@
                     });
 
                     const select = $('#select-rak');
+                    const rakInfo = $('#rak-info');
                     select.empty();
+                    rakInfo.hide();
+                    $('#capacity-warning').hide();
 
                     if (kategoriIds.size === 0) {
                         select.append('<option value="">-- Pilih Buku Terlebih Dahulu --</option>');
@@ -737,7 +790,7 @@
                     }
 
                     if (kategoriIds.size > 1) {
-                        alert('⚠️ Peringatan: Buku yang dipilih memiliki kategori berbeda!');
+                        alert('⚠️ Peringatan: Buku yang dipilih memiliki kategori berbeda! Sistem akan menampilkan rak dari semua kategori.');
                     }
 
                     try {
@@ -753,11 +806,15 @@
                         }
 
                         raks.forEach(rak => {
+                            const kapasitasTotal = rak.kolom * rak.baris * MAX_BOOKS_PER_CELL;
                             select.append(`
-                    <option value="${rak.id}">
-                        ${rak.nama} - ${rak.kategori_nama} (${rak.kapasitas} slots, ${rak.kolom}x${rak.baris})
-                    </option>
-                `);
+                                <option value="${rak.id}"
+                                        data-kolom="${rak.kolom}"
+                                        data-baris="${rak.baris}"
+                                        data-kapasitas="${rak.kapasitas}">
+                                    ${rak.nama} - ${rak.kategori_nama} (${rak.kolom}×${rak.baris}, Max: ${kapasitasTotal} eksemplar)
+                                </option>
+                            `);
                         });
                     } catch(err) {
                         console.error('Error loading rak:', err);
@@ -765,24 +822,60 @@
                     }
                 }
 
+                $('#select-rak').on('change', function() {
+                    const selected = $(this).find(':selected');
+                    const rakInfo = $('#rak-info');
+                    const capacityWarning = $('#capacity-warning');
+
+                    if (!this.value) {
+                        rakInfo.hide();
+                        capacityWarning.hide();
+                        return;
+                    }
+
+                    const kolom = parseInt(selected.data('kolom'));
+                    const baris = parseInt(selected.data('baris'));
+                    const kapasitasTotal = kolom * baris * MAX_BOOKS_PER_CELL;
+
+                    $('#rak-ukuran').text(`${kolom} × ${baris} cells`);
+                    $('#rak-kapasitas-total').text(kapasitasTotal);
+                    rakInfo.show();
+
+                    const totalEksemplar = Object.values(selectedBooksData)
+                        .reduce((sum, data) => sum + data.eksemplar.length, 0);
+
+                    if (totalEksemplar > kapasitasTotal) {
+                        $('#capacity-warning-text').text(
+                            `Kapasitas rak tidak cukup! Eksemplar: ${totalEksemplar}, Kapasitas: ${kapasitasTotal}`
+                        );
+                        capacityWarning.show();
+                        $('#btn-submit-tatarak').prop('disabled', true);
+                    } else {
+                        capacityWarning.hide();
+                        $('#btn-submit-tatarak').prop('disabled', false);
+                    }
+                });
+
                 $('#form-bulk-tatarak').on('submit', async function(e) {
                     e.preventDefault();
 
                     const allEksemplarIds = [];
                     Object.values(selectedBooksData).forEach(data => allEksemplarIds.push(...data.eksemplar));
 
-                    if (allEksemplarIds.length === 0) return alert('Pilih minimal 1 eksemplar dari buku!');
+                    if (allEksemplarIds.length === 0) {
+                        alert('Pilih minimal 1 eksemplar dari buku!');
+                        return;
+                    }
 
                     const idRak = $('#select-rak').val();
-                    if (!idRak) return alert('Pilih rak tujuan!');
-
-                    const positions = [];
-                    for (let i = 0; i < allEksemplarIds.length; i++) {
-                        positions.push({
-                            kolom: (i % 5) + 1,
-                            baris: Math.floor(i / 5) + 1
-                        });
+                    if (!idRak) {
+                        alert('Pilih rak tujuan!');
+                        return;
                     }
+
+                    const submitBtn = $('#btn-submit-tatarak');
+                    const originalText = submitBtn.html();
+                    submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Processing...');
 
                     try {
                         const res = await fetch('{{ route('admin.tataraks.bulkStore') }}', {
@@ -794,13 +887,15 @@
                             },
                             body: JSON.stringify({
                                 id_buku_items: allEksemplarIds,
-                                id_rak: idRak,
-                                positions: positions
+                                id_rak: idRak
                             })
                         });
 
                         const data = await res.json();
-                        if (!res.ok) throw new Error(data.error || data.message || 'Failed');
+
+                        if (!res.ok) {
+                            throw new Error(data.error || data.message || 'Failed to save');
+                        }
 
                         $('#modalBulkTatarak').modal('hide');
 
@@ -813,10 +908,14 @@
                         selectedBooksData = {};
                         updateSelectedBooksDisplay();
                         $('#form-bulk-tatarak')[0].reset();
+                        $('#rak-info').hide();
+                        $('#capacity-warning').hide();
 
                     } catch (err) {
                         console.error('Submit error:', err);
-                        alert('❌ ' + err.message);
+                        alert('❌ Error: ' + err.message);
+                    } finally {
+                        submitBtn.prop('disabled', false).html(originalText);
                     }
                 });
 
@@ -831,7 +930,7 @@
                 });
 
                 $('#modalBulkTatarak').on('hidden.bs.modal', function() {
-                    // Don't reset selectedBooksData to allow user to go back
+                    // Don't reset selectedBooksData to allow user to reopen
                 });
             });
         </script>

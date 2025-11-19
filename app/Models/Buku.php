@@ -44,8 +44,29 @@ class Buku extends Model
     }
 
     // Relationship ke buku_items (1 buku bisa punya banyak eksemplar)
-    public function Items()
+    public function items()
     {
         return $this->hasMany(BukuItem::class, 'id_buku');
+    }
+
+    /**
+     * Get available (not yet arranged) items for this book
+     */
+    public function availableItems()
+    {
+        return $this->hasMany(BukuItem::class, 'id_buku')
+            ->whereNull('id_rak')
+            ->where('status', 'Tersedia');
+    }
+
+    /**
+     * Get count of available items
+     */
+    public function getAvailableItemsCountAttribute()
+    {
+        return $this->items()
+            ->whereNull('id_rak')
+            ->where('status', 'Tersedia')
+            ->count();
     }
 }

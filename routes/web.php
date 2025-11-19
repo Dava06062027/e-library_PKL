@@ -19,6 +19,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
@@ -30,19 +31,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // ==========================
-// 📌 PUBLIC REGISTRATION ROUTES
-// ==========================
-Route::prefix('register')->name('registration.')->group(function () {
-    Route::get('/', [MemberRegistrationController::class, 'create'])->name('create');
-    Route::post('/', [MemberRegistrationController::class, 'store'])->name('store');
-    Route::get('/success', [MemberRegistrationController::class, 'success'])->name('success');
-    Route::get('/verify/{token}', [MemberRegistrationController::class, 'verify'])->name('verify');
-    Route::get('/verified', [MemberRegistrationController::class, 'verified'])->name('verified');
-    Route::post('/check-status', [MemberRegistrationController::class, 'checkStatus'])->name('checkStatus');
-});
-
-// ==========================
-// 📌 Member (default user)
+//  Member (default user)
 // ==========================
 Route::middleware(['auth'])->group(function () {
     Route::get('/bukus/search', [BukuController::class, 'search'])->name('bukus.search');
@@ -62,7 +51,6 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('lokasis', LokasiRakController::class)->only(['index','show']);
     Route::resource('penerbits', PenerbitController::class)->only(['index','show']);
 
-
     Route::prefix('my-peminjamans')->name('peminjamans.')->group(function () {
         Route::get('/', [PeminjamanController::class, 'myIndex'])->name('myIndex');
         Route::get('/{id}', [PeminjamanController::class, 'myShow'])->name('myShow');
@@ -70,7 +58,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 // ==========================
-// 📌 Officer + Admin
+//  Officer + Admin
 // ==========================
 Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
 
@@ -114,11 +102,11 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
         Route::delete('tataraks/destroy-selected', [TataraksController::class, 'destroySelected'])
             ->name('tataraks.destroySelected');
 
-        // ✅ RESOURCE ROUTES LAST
+        //  RESOURCE ROUTES LAST
         Route::resource('tataraks', TataraksController::class)->except(['create', 'edit']);
 
         // =============================
-        // PEMINJAMAN - ✅ ALL SPECIFIC ROUTES BEFORE {id}
+        // PEMINJAMAN -  ALL SPECIFIC ROUTES BEFORE {id}
         // =============================
         // DataTable endpoints
         Route::get('peminjamans/search-member-datatable', [PeminjamanController::class, 'searchMemberDatatable'])->name('peminjamans.searchMemberDatatable');
@@ -135,25 +123,24 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
         Route::post('peminjamans/extend', [PeminjamanController::class, 'extendUpdate'])->name('peminjamans.extend');
         Route::delete('peminjamans/destroy-selected', [PeminjamanController::class, 'destroySelected'])->name('peminjamans.destroySelected');
 
-        // ✅ LIST ROUTE (index)
+        //  LIST ROUTE (index)
         Route::get('peminjamans', [PeminjamanController::class, 'index'])->name('peminjamans.index');
 
-        // ✅ CREATE ROUTE
+        //  CREATE ROUTE
         Route::post('peminjamans', [PeminjamanController::class, 'store'])->name('peminjamans.store');
 
-        // ✅ SHOW ROUTE - MUST BE LAST!
+        //  SHOW ROUTE - Terakhir wok
         Route::get('peminjamans/{id}', [PeminjamanController::class, 'show'])
             ->name('peminjamans.show');
 
         // =============================
-        // REGISTRATION MANAGEMENT
+        // REGISTRATION UNTUK ADMIN BESAR (UNVERIFIED USERS)
         // =============================
         Route::prefix('registrations')->name('registrations.')->group(function () {
             Route::post('bulk-approve', [RegistrationController::class, 'bulkApprove'])->name('bulkApprove');
             Route::post('bulk-reject', [RegistrationController::class, 'bulkReject'])->name('bulkReject');
             Route::get('/', [RegistrationController::class, 'index'])->name('index');
             Route::get('{registration}', [RegistrationController::class, 'show'])->name('show');
-            Route::post('{registration}/review', [RegistrationController::class, 'review'])->name('review');
             Route::post('{registration}/approve', [RegistrationController::class, 'approve'])->name('approve');
             Route::post('{registration}/reject', [RegistrationController::class, 'reject'])->name('reject');
         });
@@ -161,7 +148,7 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
 });
 
 // ==========================
-// 📌 Admin Only
+//  Admin Only (Otak-Atik Role)
 // ==========================
 Route::middleware(['auth', 'isAdmin'])
     ->prefix('admin')
@@ -171,3 +158,13 @@ Route::middleware(['auth', 'isAdmin'])
     });
 
 require __DIR__.'/auth.php';
+
+// ==========================
+//  FORM REGISTRASI GAE MEMBER
+// ==========================
+Route::prefix('register')->name('registration.')->group(function () {
+    Route::get('/', [MemberRegistrationController::class, 'create'])->name('create');
+    Route::post('/', [MemberRegistrationController::class, 'store'])->name('store');
+    Route::get('/success', [MemberRegistrationController::class, 'success'])->name('success');
+    Route::post('/check-status', [MemberRegistrationController::class, 'checkStatus'])->name('checkStatus');
+});

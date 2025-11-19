@@ -16,7 +16,7 @@
             {{ $registration->email }}
         </td>
         <td>
-            <span class="badge bg-secondary">{{ $registration->temp_card_number ?? '-' }}</span>
+            <span class="badge bg-secondary">{{ $registration->temp_card_number }}</span>
         </td>
         <td>
             <span class="badge {{ $registration->getStatusBadgeClass() }} status-badge">

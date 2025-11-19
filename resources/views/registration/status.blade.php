@@ -64,7 +64,7 @@
             color: #999;
         }
         .timeline-icon.active {
-            background: #667eea;
+            background: #ffc107;
             color: white;
         }
         .timeline-icon.completed {
@@ -120,8 +120,8 @@
                     <div class="text-center mb-4">
                         <h5 class="mb-3">Status Saat Ini</h5>
                         <span class="badge {{ $registration->getStatusBadgeClass() }} fs-5 px-4 py-2">
-                                {{ $registration->getStatusLabel() }}
-                            </span>
+                            {{ $registration->getStatusLabel() }}
+                        </span>
                     </div>
 
                     <!-- Timeline Progress -->
@@ -132,71 +132,56 @@
                                 <i class="bi bi-check-lg"></i>
                             </div>
                             <div>
-                                <h6 class="mb-1">Pendaftaran Diterima</h6>
+                                <h6 class="mb-1">Pendaftaran Berhasil</h6>
                                 <small class="text-muted">{{ $registration->created_at->format('d M Y, H:i') }}</small>
-                                <p class="mb-0 mt-2 small">Form pendaftaran berhasil dikirim</p>
+                                <p class="mb-0 mt-2 small">Akun berhasil dibuat dengan nomor temporary</p>
                             </div>
                         </div>
 
-                        <!-- Step 2: Email Verification -->
+                        <!-- Step 2: Menunggu Verifikasi -->
                         <div class="timeline-item">
-                            <div class="timeline-icon {{ $registration->email_verified_at ? 'completed' : ($registration->isPendingVerification() ? 'active' : '') }}">
-                                <i class="bi {{ $registration->email_verified_at ? 'bi-check-lg' : 'bi-envelope' }}"></i>
+                            <div class="timeline-icon {{ $registration->isApproved() || $registration->isRejected() ? 'completed' : 'active' }}">
+                                <i class="bi {{ $registration->isApproved() || $registration->isRejected() ? 'bi-check-lg' : 'bi-clock-history' }}"></i>
                             </div>
                             <div>
-                                <h6 class="mb-1">Verifikasi Email</h6>
-                                @if($registration->email_verified_at)
-                                    <small class="text-muted">{{ $registration->email_verified_at->format('d M Y, H:i') }}</small>
-                                    <p class="mb-0 mt-2 small text-success">✓ Email terverifikasi</p>
-                                @else
-                                    <p class="mb-0 mt-2 small text-warning">⏳ Menunggu verifikasi email</p>
+                                <h6 class="mb-1">Verifikasi di Perpustakaan</h6>
+                                @if($registration->isPending())
+                                    <p class="mb-0 mt-2 small text-warning">
+                                        <i class="bi bi-hourglass-split me-1"></i>
+                                        Menunggu Anda datang ke perpustakaan untuk verifikasi dengan KTP/Kartu Pelajar
+                                    </p>
+                                    <div class="alert alert-info mt-2 mb-0">
+                                        <small>
+                                            <strong>Alamat:</strong> Jl. Perpustakaan No. 123, Surakarta<br>
+                                            <strong>Jam Operasional:</strong> Senin - Jumat, 08.00 - 16.00 WIB
+                                        </small>
+                                    </div>
+                                @elseif($registration->isApproved())
+                                    <small class="text-muted">{{ $registration->verified_at->format('d M Y, H:i') }}</small>
+                                    <p class="mb-0 mt-2 small text-success">✓ Verifikasi selesai</p>
+                                @elseif($registration->isRejected())
+                                    <small class="text-muted">{{ $registration->verified_at->format('d M Y, H:i') }}</small>
+                                    <p class="mb-0 mt-2 small text-danger">✗ Verifikasi ditolak</p>
                                 @endif
                             </div>
                         </div>
 
-                        <!-- Step 3: Review Dokumen -->
+                        <!-- Step 3: Aktivasi Akun -->
                         <div class="timeline-item">
-                            <div class="timeline-icon {{ $registration->reviewed_at ? 'completed' : ($registration->isUnderReview() ? 'active' : '') }}">
-                                <i class="bi {{ $registration->reviewed_at ? 'bi-check-lg' : 'bi-file-earmark-text' }}"></i>
+                            <div class="timeline-icon {{ $registration->isApproved() ? 'completed' : ($registration->isRejected() ? 'rejected' : '') }}">
+                                <i class="bi {{ $registration->isApproved() ? 'bi-check-circle-fill' : ($registration->isRejected() ? 'bi-x-circle-fill' : 'bi-lock') }}"></i>
                             </div>
                             <div>
-                                <h6 class="mb-1">Review Dokumen</h6>
-                                @if($registration->reviewed_at)
-                                    <small class="text-muted">{{ $registration->reviewed_at->format('d M Y, H:i') }}</small>
-                                    <p class="mb-0 mt-2 small text-success">✓ Dokumen direview</p>
-                                    @if($registration->review_notes)
-                                        <div class="alert alert-info mt-2 mb-0">
-                                            <small><strong>Catatan:</strong> {{ $registration->review_notes }}</small>
-                                        </div>
-                                    @endif
-                                @elseif($registration->status === 'document_requested')
-                                    <p class="mb-0 mt-2 small text-warning">⚠️ Dokumen tambahan diperlukan</p>
-                                    @if($registration->review_notes)
-                                        <div class="alert alert-warning mt-2 mb-0">
-                                            <small><strong>Catatan:</strong> {{ $registration->review_notes }}</small>
-                                        </div>
-                                    @endif
-                                @else
-                                    <p class="mb-0 mt-2 small text-muted">⏳ Menunggu review</p>
-                                @endif
-                            </div>
-                        </div>
-
-                        <!-- Step 4: Approval -->
-                        <div class="timeline-item">
-                            <div class="timeline-icon {{ $registration->isApproved() ? 'completed' : ($registration->isRejected() ? 'rejected' : ($registration->isPendingApproval() ? 'active' : '')) }}">
-                                <i class="bi {{ $registration->isApproved() ? 'bi-check-circle-fill' : ($registration->isRejected() ? 'bi-x-circle-fill' : 'bi-clock-history') }}"></i>
-                            </div>
-                            <div>
-                                <h6 class="mb-1">Approval Akhir</h6>
+                                <h6 class="mb-1">Aktivasi Akun</h6>
                                 @if($registration->isApproved())
-                                    <small class="text-muted">{{ $registration->approved_at->format('d M Y, H:i') }}</small>
-                                    <p class="mb-0 mt-2 small text-success">✓ Pendaftaran disetujui!</p>
+                                    <small class="text-muted">{{ $registration->verified_at->format('d M Y, H:i') }}</small>
+                                    <p class="mb-0 mt-2 small text-success">✓ Akun telah diaktifkan!</p>
                                     <div class="alert alert-success mt-2 mb-0">
-                                        <small>Akun Anda sudah aktif. Silakan login untuk menggunakan layanan perpustakaan.</small>
+                                        <small>
+                                            <strong>Selamat!</strong> Akun Anda sudah aktif. Silakan login untuk menggunakan layanan perpustakaan.
+                                        </small>
                                     </div>
                                 @elseif($registration->isRejected())
-                                    <small class="text-muted">{{ $registration->reviewed_at->format('d M Y, H:i') }}</small>
                                     <p class="mb-0 mt-2 small text-danger">✗ Pendaftaran ditolak</p>
                                     @if($registration->rejection_reason)
                                         <div class="alert alert-danger mt-2 mb-0">
@@ -204,7 +189,7 @@
                                         </div>
                                     @endif
                                 @else
-                                    <p class="mb-0 mt-2 small text-muted">⏳ Menunggu approval dari Officer/Admin</p>
+                                    <p class="mb-0 mt-2 small text-muted">⏳ Menunggu verifikasi selesai</p>
                                 @endif
                             </div>
                         </div>
@@ -224,12 +209,12 @@
                             </a>
                         @else
                             <button class="btn btn-secondary btn-lg" disabled>
-                                <i class="bi bi-hourglass-split me-2"></i>Menunggu Proses
+                                <i class="bi bi-hourglass-split me-2"></i>Menunggu Verifikasi
                             </button>
                         @endif
 
-                        <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary">
-                            Kembali ke Beranda
+                        <a href="{{ route('login') }}" class="btn btn-outline-secondary">
+                            Kembali ke Login
                         </a>
                     </div>
 
