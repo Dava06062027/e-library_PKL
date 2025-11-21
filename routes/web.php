@@ -34,22 +34,25 @@ Route::middleware('auth')->group(function () {
 //  Member (default user)
 // ==========================
 Route::middleware(['auth'])->group(function () {
+    // Untuk btn filtered by id
     Route::get('/bukus/search', [BukuController::class, 'search'])->name('bukus.search');
-    Route::get('/bukuitems/search', [BukuItemController::class, 'search'])->name('bukuitems.search');
-    Route::get('/bukus/{id_buku}/items', [BukuItemController::class, 'searchByBuku'])->name('bukuitems.searchByBuku');
-    Route::get('/kategoris/{id}/subkategoris', [BukuController::class, 'searchByKategori'])->name('bukus.searchByKategori');
-    Route::get('/sub_kategoris/{id}/bukus', [BukuController::class, 'searchBySubKategori'])->name('bukus.searchBySubKategori');
-    Route::get('/raks/{id}/bukuitems', [BukuItemController::class, 'searchByRak'])->name('bukuitems.searchByRak');
-    Route::get('/penerbits/{id}/bukus', [BukuController::class, 'searchByPenerbit'])->name('bukus.searchByPenerbit');
+    Route::get('/buku-items/search', [BukuItemController::class, 'search'])->name('buku-items.search');
+    Route::get('bukus/{id_buku}/items', [BukuItemController::class, 'searchByBuku'])->name('buku-items.searchByBuku');
+    Route::get('raks/{id}/bukuitems', [BukuItemController::class, 'searchByRak'])->name('bukuitems.searchByRak');
+    Route::get('penerbits/{id}/bukus', [BukuController::class, 'searchByPenerbit'])->name('bukus.searchByPenerbit');
+    Route::get('sub_kategoris/{id}/bukus', [BukuController::class, 'searchBySubKategori'])->name('bukus.searchBySubKategori');
+    Route::get('kategoris/{id}/subkategoris', [SubKategoriController::class, 'searchByKategori'])->name('subkategoris.searchByKategori');
+
 
     // Resources (read-only)
     Route::resource('bukus', BukuController::class)->only(['index','show']);
-    Route::resource('bukuitems', BukuItemController::class)->only(['index','show']);
+    Route::resource('buku-items', BukuItemController::class)->only(['index','show']);
     Route::resource('kategoris', KategoriController::class)->only(['index','show']);
     Route::resource('sub_kategoris', SubKategoriController::class)->only(['index','show']);
     Route::resource('raks', RakController::class)->only(['index','show']);
     Route::resource('lokasis', LokasiRakController::class)->only(['index','show']);
     Route::resource('penerbits', PenerbitController::class)->only(['index','show']);
+
 
     Route::prefix('my-peminjamans')->name('peminjamans.')->group(function () {
         Route::get('/', [PeminjamanController::class, 'myIndex'])->name('myIndex');
@@ -64,12 +67,19 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
 
     // CRUD koleksi
     Route::resource('bukus', BukuController::class)->except(['index','show']);
-    Route::resource('bukuitems', BukuItemController::class)->except(['index','show']);
+    Route::resource('buku-items', BukuItemController::class)->except(['index','show']);
     Route::resource('kategoris', KategoriController::class)->except(['index','show']);
     Route::resource('sub_kategoris', SubKategoriController::class)->except(['index','show']);
     Route::resource('raks', RakController::class)->except(['index','show']);
     Route::resource('lokasis', LokasiRakController::class)->except(['index','show']);
     Route::resource('penerbits', PenerbitController::class)->except(['index','show']);
+
+    Route::delete('bukus/destroy-selected', [BukuController::class, 'destroySelected'])->name('bukus.destroySelected');
+    Route::delete('buku-items/destroy-selected', [BukuItemController::class, 'destroySelected'])->name('buku-items.destroySelected');
+    Route::delete('raks/destroy-selected', [RakController::class, 'destroySelected'])->name('raks.destroySelected');
+    Route::delete('kategoris/destroy-selected', [KategoriController::class, 'destroySelected'])->name('kategoris.destroySelected');
+    Route::delete('sub_kategoris/destroy-selected', [SubKategoriController::class, 'destroySelected'])->name('sub-kategoris.destroySelected');
+    Route::delete('penerbits/destroy-selected', [PenerbitController::class, 'destroySelected'])->name('penerbits.destroySelected');
 
     Route::prefix('admin')->name('admin.')->group(function () {
 
@@ -83,6 +93,9 @@ Route::middleware(['auth','isOfficerOrAdmin'])->group(function () {
         Route::post('/users', [AdminController::class, 'store'])->name('users.store');
         Route::put('/users/{user}', [AdminController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [AdminController::class, 'destroy'])->name('users.destroy');
+
+
+
 
         // =============================
         // TATARAKS

@@ -27,6 +27,9 @@ class User extends Authenticatable
         'phone',
         'birth_date',
         'address',
+        'approved_by',
+        'approved_at',
+        'member_card_photo',
     ];
 
     /**
@@ -55,6 +58,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Relationship with approver (Officer/Admin who approved this member)
+     */
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
      * The attributes that should be hidden for serialization.
      *
      * @var list<string>
@@ -75,6 +86,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'birth_date' => 'date',
+            'approved_at' => 'datetime',
         ];
     }
 }

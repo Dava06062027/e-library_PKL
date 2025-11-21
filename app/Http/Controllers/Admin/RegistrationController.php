@@ -85,7 +85,9 @@ class RegistrationController extends Controller
             'phone' => $registration->phone,
             'birth_date' => $registration->birth_date,
             'address' => $registration->address,
-            'email_verified_at' => now()
+            'email_verified_at' => now(),
+            'approved_by' => auth()->id(), // Track who approved
+            'approved_at' => now() // Track when approved
         ]);
 
         // Update unverified user status

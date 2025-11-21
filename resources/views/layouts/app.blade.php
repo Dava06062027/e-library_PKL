@@ -12,6 +12,10 @@
     <!-- jQuery (wajib untuk DataTables dan Select2) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <!-- DataTables CSS & JS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
     <script src="https://cdn.datatables.net/select/1.4.0/js/dataTables.select.min.js"></script> <!-- Untuk multi-select -->
@@ -110,8 +114,8 @@
 
             <!-- 3. Buku Items -->
             <li>
-                <a href="{{ route('bukuitems.index') }}"
-                   class="nav-link {{ request()->is('bukuitems*') ? 'active' : '' }}">
+                <a href="{{ route('buku-items.index') }}"
+                   class="nav-link {{ request()->is('buku-items*') ? 'active' : '' }}">
                     <i class="fas fa-book-open me-2"></i> Eksemplar
                 </a>
             </li>
@@ -361,7 +365,7 @@
                         $tbody.html(rows);
                     })
                     .fail(function (xhr) {
-                        console.error('bukuitems search error', xhr.status, xhr.responseText);
+                        console.error('buku-items search error', xhr.status, xhr.responseText);
                         $tbody.html('<tr><td colspan="6" class="text-center text-danger">Terjadi kesalahan. Cek console.</td></tr>');
                     });
             }, 220); // debounce 220ms

@@ -3,9 +3,9 @@
 @section('content')
     <style>
         /* Minimal custom styles untuk warna yang spesifik Microsoft 365 */
-        .bg-m365-gray { background-color: #f5f5f5 !important; } /* Lebih grey untuk table */
-        .bg-m365-white { background-color: #ffffff !important; } /* Putih bersih untuk background */
-        .border-m365 { border-color: #d1d1d1 !important; } /* Border lebih kontras */
+        .bg-m365-gray { background-color: #f5f5f5 !important; }
+        .bg-m365-white { background-color: #ffffff !important; }
+        .border-m365 { border-color: #d1d1d1 !important; }
         .text-m365-blue { color: #0078d4 !important; }
         .bg-m365-blue { background-color: #0078d4 !important; }
         .bg-m365-selected { background-color: #deecf9 !important; }
@@ -20,8 +20,6 @@
             color: #323130;
         }
         .btn-m365:disabled { color: #a19f9d; }
-
-        /* Checkbox styling - more bold and contrast */
         .form-check-input {
             border: 2px solid #605e5c !important;
             border-radius: 2px !important;
@@ -33,12 +31,6 @@
             background-color: #0078d4 !important;
             border-color: #0078d4 !important;
         }
-        .form-check-input:focus {
-            box-shadow: 0 0 0 0.2rem rgba(0, 120, 212, 0.25) !important;
-        }
-        .form-check-input:hover {
-            border-color: #323130 !important;
-        }
         .search-input {
             border: none;
             border-bottom: 2px solid #d1d1d1;
@@ -49,7 +41,6 @@
         .search-input:focus {
             border-bottom-color: #0078d4;
             box-shadow: none;
-            background-color: #ffffff;
         }
         .status-online {
             width: 10px;
@@ -66,28 +57,6 @@
             border-radius: 50%;
             display: inline-block;
             margin-right: 6px;
-        }
-        .copy-notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #107c10;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 4px;
-            display: none;
-            align-items: center;
-            gap: 8px;
-            z-index: 9999;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        .copy-notification.show {
-            display: flex;
-            animation: slideIn 0.3s ease;
-        }
-        @keyframes slideIn {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
         }
         .filter-dropdown {
             position: absolute;
@@ -107,14 +76,6 @@
     </style>
 
     <div class="bg-m365-white min-vh-100 p-4">
-        <!-- Copy Notification -->
-        <div id="copy-notification" class="copy-notification">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span>Copied!</span>
-        </div>
-
         <!-- Toolbar -->
         <div class="d-flex align-items-center gap-2 mb-3">
             <button id="btn-new-user" class="btn btn-m365 d-flex align-items-center gap-2">
@@ -122,6 +83,10 @@
                 <span>New user</span>
             </button>
             <div class="vr"></div>
+            <button id="btn-detail-user" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
+                <i class="bi bi-person-badge"></i>
+                <span>Detail</span>
+            </button>
             <button id="btn-edit-user" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
                 <i class="bi bi-pencil"></i>
                 <span>Edit</span>
@@ -188,73 +153,23 @@
                         <th style="width: 50px;" class="py-3">
                             <input type="checkbox" id="select-all" class="form-check-input">
                         </th>
-                        <th class="py-3 fw-semibold">Name <i class="bi bi-arrow-down-up small opacity-50"></i></th>
-                        <th class="py-3 fw-semibold">Email <i class="bi bi-arrow-down-up small opacity-50"></i></th>
+                        <th class="py-3 fw-semibold">Name</th>
+                        <th class="py-3 fw-semibold">Email</th>
                         <th class="py-3 fw-semibold">Role</th>
                         <th class="py-3 fw-semibold">Status</th>
+                        <th class="py-3 fw-semibold text-center">Actions</th>
                     </tr>
                     </thead>
                     <tbody id="user-table-body">
-                    @foreach($users as $index => $user)
-                        @php
-                            $colors = ['primary', 'danger', 'info', 'success', 'warning', 'secondary'];
-                            $avatarColor = $colors[$index % count($colors)];
-                            $initial = strtoupper(substr($user->name, 0, 1));
-
-                            // Role badge styling
-                            $roleBadgeClass = 'bg-light text-dark';
-                            if ($user->role === 'Admin') {
-                                $roleBadgeClass = 'bg-danger text-white';
-                            } elseif ($user->role === 'Officer') {
-                                $roleBadgeClass = 'bg-warning text-dark';
-                            }
-
-                            // Status online/offline
-                            $isOnline = $user->isOnline();
-                        @endphp
-                        <tr data-id="{{ $user->id }}" class="border-bottom border-m365">
-                            <td>
-                                <input type="checkbox" class="form-check-input select-user" value="{{ $user->id }}">
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <span class="bg-{{ $avatarColor }} text-white rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold me-2"
-                                          style="width: 32px; height: 32px; font-size: 14px;">
-                                        {{ $initial }}
-                                    </span>
-                                    <a href="#" class="text-m365-blue text-decoration-none">{{ $user->name }}</a>
-                                </div>
-                            </td>
-                            <td class="text-secondary">
-                                {{ $user->email }}
-                                <i class="bi bi-clipboard ms-1 small copy-email" role="button" title="Copy" data-email="{{ $user->email }}"></i>
-                            </td>
-                            <td>
-                                <span class="badge {{ $roleBadgeClass }} border border-m365">{{ $user->role }}</span>
-                            </td>
-                            <td>
-                                <span class="{{ $isOnline ? 'status-online' : 'status-offline' }}"></span>
-                                <span class="small">{{ $isOnline ? 'Online' : 'Offline' }}</span>
-                            </td>
-                        </tr>
-                    @endforeach
-
-                    @if($users->isEmpty())
-                        <tr>
-                            <td colspan="5" class="text-center py-5 text-secondary">No users found.</td>
-                        </tr>
-                    @endif
+                    @include('admin.users.partials.rows')
                     </tbody>
                 </table>
             </div>
 
             <!-- Pagination Footer -->
             <div class="border-top border-m365 p-3 bg-m365-gray">
-                <div id="user-pagination" class="d-flex justify-content-between align-items-center">
-                    <div class="text-secondary small">
-                        Showing {{ $users->firstItem() ?: 0 }} - {{ $users->lastItem() ?: 0 }} of {{ $users->total() }}
-                    </div>
-                    <div>{!! $users->links() !!}</div>
+                <div id="user-pagination">
+                    @include('admin.users.partials.pagination')
                 </div>
             </div>
         </div>
@@ -262,6 +177,7 @@
 
     @include('admin.users.partials.new-user-modal')
     @include('admin.users.partials.edit-user-modal')
+    @include('admin.users.partials.member-detail-modal')
 
 @endsection
 
@@ -269,10 +185,11 @@
     <script>
         (function(){
             const csrf = "{{ csrf_token() }}";
-            const userRole = "{{ auth()->user()->role }}"; // Get current user role
+            const userRole = "{{ auth()->user()->role }}";
             const $body = document.getElementById('user-table-body');
             const $pagination = document.getElementById('user-pagination');
             const $search = document.getElementById('search-user');
+            const $btnDetail = document.getElementById('btn-detail-user');
             const $btnEdit = document.getElementById('btn-edit-user');
             const $btnDelete = document.getElementById('btn-delete-user');
             const $btnNew = document.getElementById('btn-new-user');
@@ -285,16 +202,15 @@
             const $btnClearFilter = document.getElementById('btn-clear-filter');
             const selectAll = document.getElementById('select-all');
             const $userCount = document.getElementById('user-count');
-            const $copyNotification = document.getElementById('copy-notification');
 
             let currentFilters = { role: '', status: '' };
+            let onlineStatusInterval;
 
             // Toggle filter dropdown
             $btnFilter.addEventListener('click', () => {
                 $filterDropdown.classList.toggle('show');
             });
 
-            // Close dropdown when clicking outside
             document.addEventListener('click', (e) => {
                 if (!$btnFilter.contains(e.target) && !$filterDropdown.contains(e.target)) {
                     $filterDropdown.classList.remove('show');
@@ -318,28 +234,7 @@
                 fetchUsers();
             });
 
-            // Copy email functionality
-            function attachCopyHandlers() {
-                document.querySelectorAll('.copy-email').forEach(icon => {
-                    icon.addEventListener('click', async function() {
-                        const email = this.getAttribute('data-email');
-                        try {
-                            await navigator.clipboard.writeText(email);
-                            showCopyNotification();
-                        } catch (err) {
-                            console.error('Failed to copy:', err);
-                        }
-                    });
-                });
-            }
-
-            function showCopyNotification() {
-                $copyNotification.classList.add('show');
-                setTimeout(() => {
-                    $copyNotification.classList.remove('show');
-                }, 2000);
-            }
-
+            // Update online status
             async function updateOnlineStatus() {
                 try {
                     const res = await fetch("{{ route('admin.users.onlineStatus') }}", {
@@ -350,17 +245,18 @@
                     });
                     const data = await res.json();
 
-                    // Update status di setiap row
                     document.querySelectorAll('tr[data-id]').forEach(row => {
                         const userId = row.getAttribute('data-id');
-                        const statusCell = row.querySelector('td:last-child');
+                        const statusCell = row.querySelector('td:nth-child(5)');
                         if (statusCell && data[userId] !== undefined) {
                             const isOnline = data[userId];
-                            const statusDot = statusCell.querySelector('span:first-child');
-                            const statusText = statusCell.querySelector('span:last-child');
+                            const statusDot = statusCell.querySelector('.status-online, .status-offline');
+                            const statusText = statusCell.querySelector('.small');
 
-                            if (statusDot && statusText) {
+                            if (statusDot) {
                                 statusDot.className = isOnline ? 'status-online' : 'status-offline';
+                            }
+                            if (statusText) {
                                 statusText.textContent = isOnline ? 'Online' : 'Offline';
                             }
                         }
@@ -370,8 +266,28 @@
                 }
             }
 
-            // Update status setiap 10 detik
-            setInterval(updateOnlineStatus, 10000);
+            // Start online status polling
+            function startOnlineStatusPolling() {
+                if (onlineStatusInterval) {
+                    clearInterval(onlineStatusInterval);
+                }
+                updateOnlineStatus(); // Initial call
+                onlineStatusInterval = setInterval(updateOnlineStatus, 10000); // Every 10 seconds
+            }
+
+            // Stop online status polling
+            function stopOnlineStatusPolling() {
+                if (onlineStatusInterval) {
+                    clearInterval(onlineStatusInterval);
+                    onlineStatusInterval = null;
+                }
+            }
+
+            // Start polling when page loads
+            startOnlineStatusPolling();
+
+            // Stop polling when leaving page
+            window.addEventListener('beforeunload', stopOnlineStatusPolling);
 
             function qs(url, params) {
                 const u = new URL(url, location.origin);
@@ -389,12 +305,11 @@
                         $userCount.textContent = `${data.total} users found`;
                     }
                     attachRowHandlers();
-                    attachCopyHandlers();
+                    attachDetailHandlers();
                     toggleButtons();
-                    // Update online status after render
                     setTimeout(updateOnlineStatus, 500);
                 } else {
-                    $body.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Failed to load</td></tr>';
+                    $body.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Failed to load</td></tr>';
                 }
             }
 
@@ -419,7 +334,7 @@
                     renderResponse(data);
                 } catch (err) {
                     console.error(err);
-                    $body.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Error loading</td></tr>';
+                    $body.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error loading</td></tr>';
                 }
             }
 
@@ -456,6 +371,15 @@
                 });
             }
 
+            function attachDetailHandlers() {
+                document.querySelectorAll('.btn-view-detail').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        const id = this.getAttribute('data-id');
+                        await showMemberDetail(id);
+                    });
+                });
+            }
+
             function getSelectedIds(){
                 return Array.from(document.querySelectorAll('.select-user:checked')).map(i => i.value);
             }
@@ -464,6 +388,7 @@
                 const count = getSelectedIds().length;
                 $btnDelete.disabled = (count === 0);
                 $btnEdit.disabled = (count !== 1);
+                $btnDetail.disabled = (count !== 1);
             }
 
             selectAll.addEventListener('change', function(){
@@ -480,7 +405,6 @@
             });
 
             $btnRefresh.addEventListener('click', ()=> {
-                // Clear search and filters, then fetch
                 $search.value = '';
                 $filterRole.value = '';
                 $filterStatus.value = '';
@@ -488,6 +412,7 @@
                 fetchUsers();
             });
 
+            // NEW USER - dengan form lengkap
             $btnNew.addEventListener('click', ()=> {
                 const modal = new bootstrap.Modal(document.getElementById('modalNewUser'));
                 document.getElementById('form-new-user').reset();
@@ -496,12 +421,21 @@
 
             document.getElementById('form-new-user').addEventListener('submit', async function(e){
                 e.preventDefault();
-                const form = new FormData(this);
+                const formData = new FormData(this);
+
+                // Add approved_by and approved_at for direct creation
+                formData.append('approved_by', '{{ auth()->id() }}');
+                formData.append('approved_at', new Date().toISOString());
+
                 try {
                     const res = await fetch("{{ route('admin.users.store') }}", {
                         method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': csrf },
-                        body: form
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
                     });
                     const data = await res.json();
                     if (!res.ok) {
@@ -510,12 +444,13 @@
                     }
                     bootstrap.Modal.getInstance(document.getElementById('modalNewUser')).hide();
                     fetchUsers();
-                    alert(data.message || 'Created');
+                    alert(data.message || 'Member created successfully');
                 } catch (err) {
                     alert(err.message || 'Error creating user');
                 }
             });
 
+            // EDIT USER
             $btnEdit.addEventListener('click', async function(){
                 const ids = getSelectedIds();
                 if (ids.length !== 1) return alert('Select exactly one user');
@@ -527,26 +462,44 @@
                         }
                     });
 
-                    if (!res.ok) {
-                        throw new Error('Failed to fetch user');
-                    }
+                    if (!res.ok) throw new Error('Failed to fetch user');
 
                     const user = await res.json();
+
+                    // Fill form
                     document.getElementById('edit-user-id').value = user.id;
                     document.getElementById('edit-name').value = user.name;
                     document.getElementById('edit-email').value = user.email;
+                    document.getElementById('edit-phone').value = user.phone || '';
+                    document.getElementById('edit-birth-date').value = user.birth_date || '';
+                    document.getElementById('edit-address').value = user.address || '';
+                    document.getElementById('edit-nik').value = user.nik || '';
                     document.getElementById('edit-role').value = user.role;
                     document.getElementById('edit-password').value = '';
                     document.getElementById('edit-password_confirmation').value = '';
 
-                    // Hide/disable role field for Officer
+                    // Show current photos if exists
+                    if (user.ktp_photo) {
+                        document.getElementById('current-ktp-preview').style.display = 'block';
+                        document.getElementById('current-ktp-img').src = '/storage/' + user.ktp_photo;
+                    } else {
+                        document.getElementById('current-ktp-preview').style.display = 'none';
+                    }
+
+                    if (user.photo) {
+                        document.getElementById('current-photo-preview').style.display = 'block';
+                        document.getElementById('current-photo-img').src = '/storage/' + user.photo;
+                    } else {
+                        document.getElementById('current-photo-preview').style.display = 'none';
+                    }
+
                     const roleField = document.getElementById('edit-role');
-                    const roleContainer = roleField.closest('.mb-2');
+                    const roleContainer = roleField.closest('.mb-3');
 
                     if (userRole === 'Officer') {
-                        roleContainer.style.display = 'none'; // Hide role field for Officer
+                        roleContainer.style.display = 'none';
                     } else {
-                        roleContainer.style.display = 'block'; // Show for Admin
+                        roleContainer.style.display = 'block';
                     }
 
                     new bootstrap.Modal(document.getElementById('modalEditUser')).show();
@@ -560,30 +513,19 @@
                 const id = document.getElementById('edit-user-id').value;
                 const formData = new FormData(this);
 
-                // Convert FormData to JSON
-                const data = {};
-                formData.forEach((value, key) => {
-                    data[key] = value;
-                });
-
-                // If Officer, preserve the original role (don't send role change)
-                if (userRole === 'Officer') {
-                    // Role field is hidden, so we need to get the original value
-                    const roleField = document.getElementById('edit-role');
-                    data.role = roleField.value; // Use original value
-                }
-
                 try {
                     const res = await fetch("{{ url('admin/users') }}/" + id, {
-                        method: 'PUT',
+                        method: 'POST',
                         headers: {
                             'X-CSRF-TOKEN': csrf,
-                            'Content-Type': 'application/json',
                             'Accept': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest'
                         },
-                        body: JSON.stringify(data)
+                        body: formData
                     });
+
+                    // Add _method for PUT
+                    formData.append('_method', 'PUT');
 
                     const responseData = await res.json();
 
@@ -594,12 +536,142 @@
 
                     bootstrap.Modal.getInstance(document.getElementById('modalEditUser')).hide();
                     fetchUsers();
-                    alert(responseData.message || 'Updated');
+                    alert(responseData.message || 'Updated successfully');
                 } catch (err) {
                     alert(err.message || 'Update failed');
                 }
             });
 
+            // DETAIL MEMBER
+            $btnDetail.addEventListener('click', async function(){
+                const ids = getSelectedIds();
+                if (ids.length !== 1) return alert('Select exactly one user');
+                await showMemberDetail(ids[0]);
+            });
+
+            async function showMemberDetail(id) {
+                try {
+                    const res = await fetch("{{ url('admin/users') }}/" + id, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (!res.ok) throw new Error('Failed to fetch user');
+
+                    const user = await res.json();
+
+                    // Fill detail modal - LENGKAP!
+                    document.getElementById('detail-name').textContent = user.name || '-';
+                    document.getElementById('detail-email').textContent = user.email || '-';
+                    document.getElementById('detail-nik').textContent = user.nik || '-';
+                    document.getElementById('detail-phone').textContent = user.phone || '-';
+                    document.getElementById('detail-birth-date').textContent = user.birth_date ? new Date(user.birth_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
+                    document.getElementById('detail-address').textContent = user.address || '-';
+
+                    // Role badge
+                    const roleBadge = document.getElementById('detail-role');
+                    roleBadge.textContent = user.role;
+                    roleBadge.className = 'badge ' + (user.role === 'Admin' ? 'bg-danger' : user.role === 'Officer' ? 'bg-warning text-dark' : 'bg-primary');
+
+                    // Approval info
+                    if (user.approver) {
+                        document.getElementById('detail-approved-by').textContent = user.approver.name;
+                    } else {
+                        document.getElementById('detail-approved-by').textContent = '-';
+                    }
+
+                    if (user.approved_at) {
+                        const approvedDate = new Date(user.approved_at);
+                        document.getElementById('detail-approved-at').textContent = approvedDate.toLocaleDateString('id-ID', {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    } else {
+                        document.getElementById('detail-approved-at').textContent = '-';
+                    }
+
+                    // Status
+                    const statusEl = document.getElementById('detail-status');
+                    if (user.email_verified_at) {
+                        statusEl.innerHTML = '<span class="badge bg-success">Verified</span>';
+                    } else {
+                        statusEl.innerHTML = '<span class="badge bg-warning">Unverified</span>';
+                    }
+
+                    // Profile Photo
+                    const photoImg = document.getElementById('detail-photo');
+                    if (user.photo) {
+                        photoImg.src = '/storage/' + user.photo;
+                        photoImg.onerror = function() {
+                            this.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name) + '&size=150&background=667eea&color=fff';
+                        };
+                    } else {
+                        photoImg.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name) + '&size=150&background=667eea&color=fff';
+                    }
+
+                    // KTP Photo
+                    const ktpImg = document.getElementById('detail-ktp');
+                    const ktpContainer = document.getElementById('detail-ktp-container');
+                    if (user.ktp_photo) {
+                        ktpImg.src = '/storage/' + user.ktp_photo;
+                        ktpImg.onerror = function() {
+                            ktpContainer.innerHTML = '<div class="alert alert-warning"><small>Foto KTP tidak dapat dimuat</small></div>';
+                        };
+                        ktpContainer.style.display = 'block';
+                    } else {
+                        ktpContainer.innerHTML = '<div class="alert alert-secondary"><small><i class="bi bi-exclamation-circle me-1"></i>Belum ada foto KTP</small></div>';
+                    }
+
+                    // Fill member card
+                    document.getElementById('card-member-name').textContent = user.name ? user.name.toUpperCase() : 'NO NAME';
+
+                    // Member ID (gunakan NIK atau ID user)
+                    const memberId = user.nik || String(user.id).padStart(11, '0');
+                    document.getElementById('card-member-id').textContent = memberId;
+                    document.getElementById('card-nik-text').textContent = '* ' + memberId.match(/.{1,1}/g).join(' ') + ' *';
+
+                    // Card Photo
+                    const cardPhoto = document.getElementById('card-photo');
+                    if (user.photo) {
+                        cardPhoto.src = '/storage/' + user.photo;
+                        cardPhoto.onerror = function() {
+                            this.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name) + '&size=200&background=667eea&color=fff';
+                        };
+                    } else {
+                        cardPhoto.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name) + '&size=200&background=667eea&color=fff';
+                    }
+
+                    // Generate barcode
+                    const barcodeEl = document.getElementById('card-barcode');
+                    if (barcodeEl && typeof JsBarcode !== 'undefined') {
+                        try {
+                            JsBarcode(barcodeEl, memberId, {
+                                format: "CODE128",
+                                width: 2,
+                                height: 50,
+                                displayValue: false,
+                                margin: 0
+                            });
+                        } catch (err) {
+                            console.error('Barcode generation failed:', err);
+                            // Fallback: create simple bars
+                            barcodeEl.innerHTML = '<rect width="500" height="50" fill="#000000"/>';
+                        }
+                    }
+
+                    new bootstrap.Modal(document.getElementById('modalMemberDetail')).show();
+                } catch (err) {
+                    console.error('Error:', err);
+                    alert('Failed to fetch member detail: ' + err.message);
+                }
+            }
+
+            // DELETE
             $btnDelete.addEventListener('click', async function(){
                 const ids = getSelectedIds();
                 if (!ids.length) return alert('Select users first');
@@ -627,7 +699,7 @@
             });
 
             attachRowHandlers();
-            attachCopyHandlers();
+            attachDetailHandlers();
             toggleButtons();
         })();
     </script>

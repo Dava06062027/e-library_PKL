@@ -9,133 +9,130 @@ use Illuminate\Http\Request;
 
 class BukuItemController extends Controller
 {
-    public function index()
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
     {
-        $bukuitems = BukuItem::with('buku')->paginate(10);
-        return view('bukuitems.index', compact('bukuitems'));
-    }
+        $items = BukuItem::with(['buku', 'rak'])
+            ->when($request->search, function($query) use ($request) {
+                $query->where('barcode', 'like', '%' . $request->search . '%');
+            })
+            ->when($request->kondisi, function($query) use ($request) {
+                $query->where('kondisi', $request->kondisi);
+            })
+            ->when($request->status, function($query) use ($request) {
+                $query->where('status', $request->status);
+            })
+            ->when($request->buku, function($query) use ($request) {
+                $query->where('id_buku', $request->buku);
+            })
+            ->when($request->rak, function($query) use ($request) {
+                $query->where('id_rak', $request->rak);
+            })
+            ->Paginate(10)
+            ->withQueryString();
 
-    public function create()
-    {
         $bukus = Buku::all();
         $raks = Rak::all();
 
-        return view('bukuitems.create', compact('bukus', 'raks'));
+        if ($request->ajax()) {
+            return view('buku-items.partials.rows', compact('items'));
+        }
+
+        return view('buku-items.index', compact('items', 'bukus', 'raks'));
     }
 
+    /**
+     * Store a newly created resource in storage.
+     */
     public function store(Request $request)
     {
         $validated = $request->validate([
             'id_buku' => 'required|exists:bukus,id',
-            'kondisi' => 'required|string|max:50',
-            'status' => 'required|string|max:50',
-            'sumber' => 'required|string|max:50',
-            'id_rak' => 'required|exists:raks,id',
+            'kondisi' => 'required|in:Baik,Rusak,Hilang',
+            'status' => 'required|in:Tersedia,Dipinjam,Reparasi',
+            'sumber' => 'required|in:Hibah,Beli',
+            'id_rak' => 'nullable|exists:raks,id',
+            // No barcode validation, assuming trigger handles it
         ]);
 
-        BukuItem::create($validated);
+        $item = BukuItem::create($validated);
 
-        return redirect()->route('bukuitems.index')->with('success', 'Buku Item berhasil ditambahkan.');
+        return response()->json([
+            'message' => 'Buku Item created successfully',
+            'item' => $item
+        ], 201);
     }
 
-    public function edit(BukuItem $bukuitem)
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
     {
-        $bukus = Buku::all();
-        $raks = Rak::all();
-
-        return view('bukuitems.edit', compact('bukuitem','bukus','raks')
-        );
+        $item = BukuItem::with(['buku', 'rak'])->findOrFail($id);
+        return response()->json($item);
     }
 
-    public function update(Request $request, BukuItem $bukuitem)
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
     {
+        $item = BukuItem::findOrFail($id);
+
         $validated = $request->validate([
             'id_buku' => 'required|exists:bukus,id',
-            'kondisi' => 'required|string|max:50',
-            'status' => 'required|string|max:50',
-            'sumber' => 'required|string|max:50',
-            'id_rak' => 'required|exists:raks,id',
+            'kondisi' => 'required|in:Baik,Rusak,Hilang',
+            'status' => 'required|in:Tersedia,Dipinjam,Reparasi',
+            'sumber' => 'required|in:Hibah,Beli',
+            'id_rak' => 'nullable|exists:raks,id',
+            // No barcode validation, don't touch it
         ]);
 
-        $bukuitem->update($validated);
+        $item->update($validated);
 
-        return redirect()->route('bukuitems.index')->with('success', 'Buku Item berhasil diperbarui.');
+        return response()->json([
+            'message' => 'Buku Item updated successfully'
+        ]);
     }
 
-
-
-    public function show($id)
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
     {
-        $bukuitem = BukuItem::with([
-            'buku.penerbit',
-            'buku.kategori',
-            'buku.subKategori',
-            // Rak + LokasiRak pakai key yg bener
-            'rak' => function ($q) {
-                $q->with('lokasiRak', 'kategori');
-            }
-        ])->findOrFail($id);
+        $item = BukuItem::findOrFail($id);
+        $item->delete();
 
-        return view('bukuitems.show', compact('bukuitem'));
+        return response()->json([
+            'message' => 'Buku Item deleted successfully'
+        ]);
     }
 
-    public function destroy($id)
+    /**
+     * Delete selected items
+     */
+    public function destroySelected(Request $request)
     {
-        $bukuitem = BukuItem::findOrFail($id);
-        $bukuitem->delete();
+        $ids = $request->json('ids');
+        BukuItem::whereIn('id', $ids)->delete();
 
-        return redirect()->route('bukuitems.index')->with('success', 'Eksemplar berhasil dihapus.');
+        return response()->json([
+            'message' => 'Selected buku items deleted successfully'
+        ]);
     }
 
-
-    public function searchByBuku($id)
+    // Existing method from previous
+    public function searchByBuku($id_buku)
     {
-        $bukuitems = BukuItem::where('id_buku', $id)->paginate(10);
-        return view('bukuitems.index', compact('bukuitems'));
+        $items = BukuItem::with('rak')->where('id_buku', $id_buku)->get();
+        return response()->json($items);
     }
 
-    public function searchByRak($id)
+    public function searchByRak($id_rak)
     {
-        $bukuitems = \App\Models\BukuItem::with(['buku.kategori', 'buku.penerbit', 'rak.lokasi'])
-            ->where('id_rak', $id)
-            ->paginate(10);
-
-        return view('bukuitems.index', compact('bukuitems'));
+        $items = BukuItem::with(['buku', 'rak'])->where('id_rak', $id_rak)->get();
+        return response()->json($items);
     }
-
-
-    public function search(Request $request)
-    {
-        $q = $request->get('q', '');
-
-        $bukuitems = \App\Models\BukuItem::with(['buku', 'rak'])
-            ->where(function ($query) use ($q) {
-                $query->whereHas('buku', function ($qb) use ($q) {
-                    $qb->where('judul', 'like', "%{$q}%");
-                })
-                    ->orWhere('barcode', 'like', "%{$q}%")
-                    ->orWhere('kondisi', 'like', "%{$q}%")
-                    ->orWhere('status', 'like', "%{$q}%")
-                    ->orWhereHas('rak', function ($qr) use ($q) {
-                        $qr->where('nama', 'like', "%{$q}%");
-                    });
-            })
-            ->limit(100)
-            ->get()
-            ->map(function ($it) {
-                return [
-                    'id'         => $it->id,
-                    'judul'      => $it->buku ? $it->buku->judul : null,
-                    'rak'        => $it->rak ? ['id' => $it->rak->id, 'nama' => $it->rak->nama] : null,
-                    'kondisi'    => $it->kondisi,
-                    'status'     => $it->status,
-                    'actions' => view('bukuitems.partials.item_actions', compact('it'))->render(),
-                ];
-            });
-
-        return response()->json($bukuitems);
-    }
-
-
-
 }

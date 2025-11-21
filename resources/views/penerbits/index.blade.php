@@ -1,55 +1,455 @@
+<!-- resources/views/penerbits/index.blade.php -->
+
 @extends('layouts.app')
 
 @section('content')
-    <div class="card">
+    <style>
+        /* Sama seperti contoh: Minimal custom styles untuk warna M365-ish */
+        .bg-m365-gray { background-color: #f5f5f5 !important; }
+        .bg-m365-white { background-color: #ffffff !important; }
+        .border-m365 { border-color: #d1d1d1 !important; }
+        .text-m365-blue { color: #0078d4 !important; }
+        .bg-m365-blue { background-color: #0078d4 !important; }
+        .bg-m365-selected { background-color: #deecf9 !important; }
+        .table-hover tbody tr:hover { background-color: #e8e8e8 !important; }
+        .btn-m365 {
+            border: none;
+            background: transparent;
+            color: #323130;
+        }
+        .btn-m365:hover:not(:disabled) {
+            background-color: #e8e8e8 !important;
+            color: #323130;
+        }
+        .btn-m365:disabled { color: #a19f9d; }
+        .form-check-input {
+            border: 2px solid #605e5c !important;
+            border-radius: 2px !important;
+            width: 18px !important;
+            height: 18px !important;
+            cursor: pointer;
+        }
+        .form-check-input:checked {
+            background-color: #0078d4 !important;
+            border-color: #0078d4 !important;
+        }
+        .search-input {
+            border: none;
+            border-bottom: 2px solid #d1d1d1;
+            border-radius: 0;
+            padding-left: 32px;
+            background-color: #ffffff;
+        }
+        .search-input:focus {
+            border-bottom-color: #0078d4;
+            box-shadow: none;
+        }
+        .filter-dropdown {
+            position: absolute;
+            background: white;
+            border: 2px solid #d1d1d1;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 16px;
+            min-width: 250px;
+            z-index: 1000;
+            display: none;
+            margin-top: 4px;
+        }
+        .filter-dropdown.show {
+            display: block;
+        }
 
-        <div class="card-header d-flex justify-content-between align-items-center pb-3"
-             style="background-color: #dee2e6;">
-            <!-- Kiri: Judul + Tombol (stacked) -->
-            <div class="d-flex flex-column">
-                <h3 class="card-title mb-2 pb-2">Daftar Penerbit</h3>
-        <a href="{{ route('penerbits.create') }}" class="btn btn-success btn-sm">
-            <i class="fas fa-plus"></i>  Tambah Data</a>
-            </div>
+        /* Pagination Styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin: 16px 0;
+        }
+
+        .pagination .page-item {
+            list-style: none;
+        }
+
+        .pagination .page-link {
+            background-color: #ffffff;
+            border: 1px solid #d1d1d1;
+            color: #0078d4;
+            padding: 6px 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .pagination .page-link:hover {
+            background-color: #e8e8e8;
+        }
+
+        .pagination .active .page-link {
+            background-color: #0078d4;
+            color: #ffffff;
+            border-color: #0078d4;
+        }
+
+        .pagination .disabled .page-link {
+            color: #a19f9d;
+            pointer-events: none;
+        }
+
+        /* Hide or override any weird entities/icons */
+        .pagination .page-link span {
+            display: inline-block;
+            font-family: sans-serif; /* Force standard font to avoid icon overrides */
+        }
+    </style>
+
+    <div class="bg-m365-white min-vh-100 p-4">
+        <!-- Toolbar -->
+        <div class="d-flex align-items-center gap-2 mb-3">
+            @if(auth()->user()->role === 'Officer' || auth()->user()->role === 'Admin')
+                <button id="btn-new-penerbit" class="btn btn-m365 d-flex align-items-center gap-2">
+                    <i class="bi bi-plus-lg"></i>
+                    <span>New Penerbit</span>
+                </button>
+                <div class="vr"></div>
+                <button id="btn-detail-penerbit" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
+                    <i class="bi bi-book"></i>
+                    <span>Detail</span>
+                </button>
+                <button id="btn-edit-penerbit" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
+                    <i class="bi bi-pencil"></i>
+                    <span>Edit</span>
+                </button>
+                <button id="btn-delete-penerbit" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
+                    <i class="bi bi-trash"></i>
+                    <span>Delete</span>
+                </button>
+                <div class="vr"></div>
+            @endif
+            <button id="btn-refresh" class="btn btn-m365 d-flex align-items-center gap-2">
+                <i class="bi bi-arrow-clockwise"></i>
+                <span>Refresh</span>
+            </button>
         </div>
 
-        <div class="card-body">
-            <table class="table table-bordered datatable custom-table table-striped">
-                <thead class="table-dark">
-            <tr>
-                <th>Nama</th>
-                <th>Alamat</th>
-                <th>No Telepon</th>
-                <th>Email</th>
-                <th>Aksi</th>
-            </tr>
-            </thead>
-            <tbody>
-            @foreach ($penerbits as $penerbit)
-                <tr>
-                    <td>{{ $penerbit->nama }}</td>
-                    <td>{{ $penerbit->alamat }}</td>
-                    <td>{{ $penerbit->no_telepon }}</td>
-                    <td>{{ $penerbit->email }}</td>
-                    <td class="text-center">
-                        @can('update', $penerbit)
-                        <a href="{{ route('penerbits.edit', $penerbit->id) }}" class="btn btn-success btn-sm"><i class="fas fa-edit"></i></a>
-                        @endcan
-                            @can('delete', $penerbit)
-                        <form action="{{ route('penerbits.destroy', $penerbit->id) }}" method="POST" class="d-inline">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-danger btn-sm"
-                                    onclick="return confirm('Yakin hapus penerbit ini?')"><i class="fas fa-trash"></i></button>
-                        </form>
-                            @endcan
-                            <a href="{{ route('bukus.searchByPenerbit', $penerbit->id) }}" class="btn btn-sm btn-dark">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                            </a>
-                    </td>
-                </tr>
-            @endforeach
-            </tbody>
-        </table>
+        <!-- Search & Filter -->
+        <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="position-relative" style="width: 300px;">
+                <i class="bi bi-search position-absolute start-0 top-50 translate-middle-y ms-2 text-secondary"></i>
+                <input id="search-penerbit" type="text" class="form-control search-input" placeholder="Search by Nama or Email">
+            </div>
+            <!-- No complex filters for this simple table -->
+        </div>
+
+        <!-- Count -->
+        <div class="text-secondary small mb-3">
+            <span id="penerbit-count">{{ $penerbits->total() }} penerbits found</span>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-m365-gray border border-m365 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="bg-m365-gray border-bottom border-m365">
+                    <tr>
+                        <th style="width: 50px;" class="py-3">
+                            <input type="checkbox" id="select-all" class="form-check-input">
+                        </th>
+                        <th class="py-3 fw-semibold">Nama</th>
+                        <th class="py-3 fw-semibold">Alamat</th>
+                        <th class="py-3 fw-semibold">No Telepon</th>
+                        <th class="py-3 fw-semibold">Email</th>
+                        <th class="py-3 fw-semibold text-center">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody id="penerbit-table-body">
+                    @include('penerbits.partials.rows')
+                    </tbody>
+                </table>
+            </div>
+            @include('penerbits.partials.pagination')
         </div>
     </div>
+
+    @include('penerbits.partials.new-penerbit-modal')
+    @include('penerbits.partials.edit-penerbit-modal')
+    @include('penerbits.partials.penerbit-detail-modal')
+    @include('penerbits.partials.bukus-list-modal')
+
+    @push('scripts')
+    <script>
+        (function() {
+            const csrf = '{{ csrf_token() }}';
+            const $selectAll = document.getElementById('select-all');
+            const $btnNew = document.getElementById('btn-new-penerbit');
+            const $btnDetail = document.getElementById('btn-detail-penerbit');
+            const $btnEdit = document.getElementById('btn-edit-penerbit');
+            const $btnDelete = document.getElementById('btn-delete-penerbit');
+            const $btnRefresh = document.getElementById('btn-refresh');
+            const $searchInput = document.getElementById('search-penerbit');
+            const $penerbitCount = document.getElementById('penerbit-count');
+            const $tableBody = document.getElementById('penerbit-table-body');
+
+            let currentPage = 1;
+            let searchQuery = '';
+
+            // Toggle buttons based on selection
+            function toggleButtons() {
+                const selected = getSelectedIds().length;
+                if ($btnDetail) $btnDetail.disabled = selected !== 1;
+                if ($btnEdit) $btnEdit.disabled = selected !== 1;
+                if ($btnDelete) $btnDelete.disabled = selected === 0;
+            }
+
+            function getSelectedIds() {
+                return Array.from(document.querySelectorAll('.select-penerbit:checked')).map(el => el.value);
+            }
+
+            function attachRowHandlers() {
+                document.querySelectorAll('.select-penerbit').forEach(el => {
+                    el.addEventListener('change', toggleButtons);
+                });
+                $selectAll.addEventListener('change', function() {
+                    document.querySelectorAll('.select-penerbit').forEach(el => el.checked = this.checked);
+                    toggleButtons();
+                });
+            }
+
+            function attachDetailHandlers() {
+                document.querySelectorAll('.btn-view-detail').forEach(btn => {
+                    btn.addEventListener('click', showPenerbitDetail);
+                });
+                document.querySelectorAll('.btn-view-bukus').forEach(btn => {
+                    btn.addEventListener('click', showBukusList);
+                });
+            }
+
+            // Fetch penerbits with AJAX for partial HTML
+            async function fetchPenerbits(page = 1) {
+                try {
+                    const params = new URLSearchParams({
+                        page,
+                        search: searchQuery
+                    });
+                    const res = await fetch(`/penerbits?${params.toString()}`, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'text/html'
+                        }
+                    });
+                    if (!res.ok) throw new Error('Failed to fetch');
+                    const html = await res.text();
+                    $tableBody.innerHTML = html;
+                    attachRowHandlers();
+                    attachDetailHandlers();
+                    toggleButtons();
+                    // Update count approximately
+                    $penerbitCount.textContent = document.querySelectorAll('#penerbit-table-body tr:not(.no-data)').length + ' penerbits found';
+                } catch (err) {
+                    console.error('Failed to fetch penerbits', err);
+                    alert('Failed to fetch penerbits');
+                }
+            }
+
+            // Show penerbit detail with JSON
+            async function showPenerbitDetail(e) {
+                const id = e.target.closest('button').dataset.id;
+                try {
+                    const res = await fetch(`/penerbits/${id}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    if (!res.ok) throw new Error('Failed to fetch');
+                    const penerbit = await res.json();
+                    document.getElementById('detail-nama').textContent = penerbit.nama || '-';
+                    document.getElementById('detail-alamat').textContent = penerbit.alamat || '-';
+                    document.getElementById('detail-no-telepon').textContent = penerbit.no_telepon || '-';
+                    document.getElementById('detail-email').textContent = penerbit.email || '-';
+                    new bootstrap.Modal(document.getElementById('modalPenerbitDetail')).show();
+                } catch (err) {
+                    alert('Failed to fetch penerbit detail: ' + err.message);
+                }
+            }
+
+            async function showBukusList(e) {
+                const id = e.target.closest('button').dataset.id;
+                try {
+                    const res = await fetch(`/penerbits/${id}/bukus`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    if (!res.ok) throw new Error('Failed to fetch');
+                    const bukus = await res.json();
+                    const $bukusBody = document.getElementById('bukus-table-body');
+                    $bukusBody.innerHTML = '';
+                    if (bukus.length === 0) {
+                        $bukusBody.innerHTML = '<tr><td colspan="4" class="text-center">No bukus found.</td></tr>';
+                    } else {
+                        bukus.forEach(buku => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                        <td>${buku.judul}</td>
+                        <td>${buku.pengarang}</td>
+                        <td>${buku.tahun_terbit}</td>
+                        <td>${buku.kategori?.nama ?? '-'}</td>
+                    `;
+                            $bukusBody.appendChild(tr);
+                        });
+                    }
+                    new bootstrap.Modal(document.getElementById('modalBukusList')).show();
+                } catch (err) {
+                    alert('Failed to fetch bukus: ' + err.message);
+                }
+            }
+
+            // New Penerbit
+            if ($btnNew) {
+                $btnNew.addEventListener('click', () => {
+                    new bootstrap.Modal(document.getElementById('modalNewPenerbit')).show();
+                });
+            }
+
+            // Form submit for new with FormData and proper headers
+            document.getElementById('form-new-penerbit').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                try {
+                    const res = await fetch('/penerbits', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    });
+                    if (!res.ok) {
+                        const errorData = await res.json();
+                        throw new Error(errorData.message || 'Failed to create');
+                    }
+                    const data = await res.json();
+                    fetchPenerbits(currentPage);
+                    bootstrap.Modal.getInstance(document.getElementById('modalNewPenerbit')).hide();
+                    alert('Created successfully');
+                } catch (err) {
+                    alert('Failed to create: ' + err.message);
+                }
+            });
+
+            // Edit Penerbit
+            if ($btnEdit) {
+                $btnEdit.addEventListener('click', async function() {
+                    const id = getSelectedIds()[0];
+                    try {
+                        const res = await fetch(`/penerbits/${id}`, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+                        if (!res.ok) throw new Error('Failed to fetch');
+                        const penerbit = await res.json();
+                        document.getElementById('edit-penerbit-id').value = penerbit.id;
+                        document.getElementById('edit-nama').value = penerbit.nama;
+                        document.getElementById('edit-alamat').value = penerbit.alamat || '';
+                        document.getElementById('edit-no-telepon').value = penerbit.no_telepon || '';
+                        document.getElementById('edit-email').value = penerbit.email || '';
+                        new bootstrap.Modal(document.getElementById('modalEditPenerbit')).show();
+                    } catch (err) {
+                        alert('Failed to load edit data: ' + err.message);
+                    }
+                });
+            }
+
+            // Form submit for edit with FormData and proper headers
+            document.getElementById('form-edit-penerbit').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const id = document.getElementById('edit-penerbit-id').value;
+                const formData = new FormData(this);
+                formData.append('_method', 'PUT');
+                try {
+                    const res = await fetch(`/penerbits/${id}`, {
+                        method: 'POST', // Since Laravel uses POST for PUT with _method
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    });
+                    if (!res.ok) {
+                        const errorData = await res.json();
+                        throw new Error(errorData.message || 'Failed to update');
+                    }
+                    const data = await res.json();
+                    fetchPenerbits(currentPage);
+                    bootstrap.Modal.getInstance(document.getElementById('modalEditPenerbit')).hide();
+                    alert('Updated successfully');
+                } catch (err) {
+                    alert('Failed to update: ' + err.message);
+                }
+            });
+
+            // Delete
+            if ($btnDelete) {
+                $btnDelete.addEventListener('click', async function() {
+                    const ids = getSelectedIds();
+                    if (!ids.length) return alert('Select penerbits first');
+                    if (!confirm(`Delete ${ids.length} penerbits?`)) return;
+                    try {
+                        const res = await fetch('/penerbits/destroy-selected', {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': csrf,
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: JSON.stringify({ ids })
+                        });
+                        if (!res.ok) {
+                            const errorData = await res.json();
+                            throw new Error(errorData.message || 'Failed to delete');
+                        }
+                        const data = await res.json();
+                        fetchPenerbits(currentPage);
+                        alert('Deleted successfully');
+                    } catch (err) {
+                        alert('Failed to delete: ' + err.message);
+                    }
+                });
+            }
+
+            // Refresh
+            $btnRefresh.addEventListener('click', () => fetchPenerbits(currentPage));
+
+            // Search
+            $searchInput.addEventListener('input', function() {
+                searchQuery = this.value;
+                fetchPenerbits(1);
+            });
+
+            // Pagination - Event delegation for links
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A' && e.target.href.includes('page=')) {
+                    e.preventDefault();
+                    const url = new URL(e.target.href);
+                    currentPage = url.searchParams.get('page');
+                    fetchPenerbits(currentPage);
+                }
+            });
+
+            // Init
+            attachRowHandlers();
+            attachDetailHandlers();
+            toggleButtons();
+        })();
+    </script>
+    @endpush
 @endsection

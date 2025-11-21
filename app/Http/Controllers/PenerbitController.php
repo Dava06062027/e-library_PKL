@@ -1,57 +1,108 @@
 <?php
 
+// app/Http/Controllers/PenerbitController.php
+
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Penerbit;
+use Illuminate\Http\Request;
 
 class PenerbitController extends Controller
 {
-    public function index()
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
     {
-        $penerbits = Penerbit::all();
+        $penerbits = Penerbit::query()
+            ->when($request->search, function($query) use ($request) {
+                $query->where('nama', 'like', '%' . $request->search . '%')
+                    ->orWhere('alamat', 'like', '%' . $request->search . '%')
+                    ->orWhere('email', 'like', '%' . $request->search . '%');
+            })
+            ->Paginate(10)
+            ->withQueryString();
+
+        if ($request->ajax()) {
+            return view('penerbits.partials.rows', compact('penerbits'));
+        }
+
         return view('penerbits.index', compact('penerbits'));
     }
 
-    public function create()
-    {
-        return view('penerbits.create');
-    }
-
+    /**
+     * Store a newly created resource in storage.
+     */
     public function store(Request $request)
     {
-        $request->validate([
-            'nama' => 'required|string|max:255',
-            'alamat' => 'nullable|string',
-            'no_telepon' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255|unique:penerbits,nama',
+            'alamat' => 'nullable|string|max:255',
+            'no_telepon' => 'nullable|string|max:50',
+            'email' => 'nullable|email|max:100',
         ]);
 
-        Penerbit::create($request->all());
-        return redirect()->route('penerbits.index')->with('success', 'Penerbit berhasil ditambahkan');
+        $penerbit = Penerbit::create($validated);
+
+        return response()->json([
+            'message' => 'Penerbit created successfully',
+            'penerbit' => $penerbit
+        ], 201);
     }
 
-    public function edit(Penerbit $penerbit)
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
     {
-        return view('penerbits.edit', compact('penerbit'));
+        $penerbit = Penerbit::findOrFail($id);
+        return response()->json($penerbit);
     }
 
-    public function update(Request $request, Penerbit $penerbit)
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
     {
-        $request->validate([
-            'nama' => 'required|string|max:255',
-            'alamat' => 'nullable|string',
-            'no_telepon' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
+        $penerbit = Penerbit::findOrFail($id);
+
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255|unique:penerbits,nama,' . $id,
+            'alamat' => 'nullable|string|max:255',
+            'no_telepon' => 'nullable|string|max:50',
+            'email' => 'nullable|email|max:100',
         ]);
 
-        $penerbit->update($request->all());
-        return redirect()->route('penerbits.index')->with('success', 'Penerbit berhasil diperbarui');
+        $penerbit->update($validated);
+
+        return response()->json([
+            'message' => 'Penerbit updated successfully'
+        ]);
     }
 
-    public function destroy(Penerbit $penerbit)
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
     {
+        $penerbit = Penerbit::findOrFail($id);
         $penerbit->delete();
-        return redirect()->route('penerbits.index')->with('success', 'Penerbit berhasil dihapus');
+
+        return response()->json([
+            'message' => 'Penerbit deleted successfully'
+        ]);
+    }
+
+    /**
+     * Delete selected penerbits
+     */
+    public function destroySelected(Request $request)
+    {
+        $ids = $request->json('ids');
+        Penerbit::whereIn('id', $ids)->delete();
+
+        return response()->json([
+            'message' => 'Selected penerbits deleted successfully'
+        ]);
     }
 }

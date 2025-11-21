@@ -4,63 +4,104 @@ namespace App\Http\Controllers;
 
 use App\Models\Buku;
 use App\Models\Kategori;
-use App\Models\Penerbit;
 use App\Models\SubKategori;
+use App\Models\Penerbit;
 use Illuminate\Http\Request;
 
 class BukuController extends Controller
 {
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
+    {
+        $bukus = Buku::with(['kategori', 'subKategori', 'penerbit'])
+            ->when($request->search, function($query) use ($request) {
+                $query->where('judul', 'like', '%' . $request->search . '%')
+                    ->orWhere('pengarang', 'like', '%' . $request->search . '%');
+            })
+            ->when($request->kategori, function($query) use ($request) {
+                $query->where('id_kategori', $request->kategori);
+            })
+            ->when($request->subkategori, function($query) use ($request) {
+                $query->where('id_sub_kategori', $request->subkategori);
+            })
+            ->paginate(10)
+            ->withQueryString(); // Preserve query params for pagination
 
+        $kategoris = Kategori::all();
+        $subkategoris = SubKategori::all();
+        $penerbits = Penerbit::all();
 
-    public function index() {
-        $bukus = Buku::with('penerbit')->paginate(10);
-        return view('bukus.index', compact('bukus'));
+        if ($request->ajax()) {
+            return view('bukus.partials.rows', compact('bukus'));
+        }
+
+        return view('bukus.index', compact('bukus', 'kategoris', 'subkategoris', 'penerbits'));
     }
 
+    /**
+     * Show the form for creating a new resource.
+     */
     public function create()
     {
-        $penerbits = Penerbit::all();
-        $kategoris = Kategori::all();
-        $subKategoris = SubKategori::all();
-
-        return view('bukus.create', compact('penerbits', 'kategoris', 'subKategoris'));
+        // Not needed since using modal
     }
 
+    /**
+     * Store a newly created resource in storage.
+     */
     public function store(Request $request)
     {
         $validated = $request->validate([
             'judul' => 'required|string|max:255',
             'pengarang' => 'required|string|max:255',
-            'tahun_terbit' => 'required|integer',
+            'tahun_terbit' => 'required|integer|min:1900|max:' . (date('Y') + 5),
             'isbn' => 'nullable|string|max:50',
-            'barcode' => 'nullable|string|max:50',
+            'barcode' => 'required|string|max:50|unique:bukus,barcode',
             'id_penerbit' => 'required|exists:penerbits,id',
             'id_kategori' => 'required|exists:kategoris,id',
             'id_sub_kategori' => 'required|exists:sub_kategoris,id',
         ]);
 
-        Buku::create($validated);
+        $buku = Buku::create($validated);
 
-        return redirect()->route('bukus.index')->with('success', 'Buku berhasil ditambahkan.');
+        return response()->json([
+            'message' => 'Buku created successfully',
+            'buku' => $buku
+        ], 201);
     }
 
-    public function edit(Buku $buku)
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
     {
-        $penerbits = Penerbit::all();
-        $kategoris = Kategori::all();
-        $subKategoris = SubKategori::all();
-
-        return view('bukus.edit', compact('buku', 'penerbits', 'kategoris', 'subKategoris'));
+        $buku = Buku::with(['penerbit', 'kategori', 'subKategori'])->findOrFail($id);
+        return response()->json($buku);
     }
 
-    public function update(Request $request, Buku $buku)
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(string $id)
     {
+        // Not needed since using modal
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
+    {
+        $buku = Buku::findOrFail($id);
+
         $validated = $request->validate([
             'judul' => 'required|string|max:255',
             'pengarang' => 'required|string|max:255',
-            'tahun_terbit' => 'required|integer',
+            'tahun_terbit' => 'required|integer|min:1900|max:' . (date('Y') + 5),
             'isbn' => 'nullable|string|max:50',
-            'barcode' => 'nullable|string|max:50',
+            'barcode' => 'required|string|max:50|unique:bukus,barcode,' . $id,
             'id_penerbit' => 'required|exists:penerbits,id',
             'id_kategori' => 'required|exists:kategoris,id',
             'id_sub_kategori' => 'required|exists:sub_kategoris,id',
@@ -68,72 +109,46 @@ class BukuController extends Controller
 
         $buku->update($validated);
 
-        return redirect()->route('bukus.index')->with('success', 'Buku berhasil diperbarui.');
+        return response()->json([
+            'message' => 'Buku updated successfully'
+        ]);
     }
-    public function show($id)
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
     {
-        $buku = Buku::with(['penerbit', 'kategori', 'subKategori'])->findOrFail($id);
-        return view('bukus.show', compact('buku'));
+        $buku = Buku::findOrFail($id);
+        $buku->delete();
+
+        return response()->json([
+            'message' => 'Buku deleted successfully'
+        ]);
     }
 
-    public function destroy($id) {
-        Buku::findOrFail($id)->delete();
-        return redirect()->route('bukus.index')->with('success', 'Buku berhasil dihapus');
-    }
-
-    public function search(Request $request)
+    /**
+     * Delete selected bukus
+     */
+    public function destroySelected(Request $request)
     {
-        $q = $request->get('q', '');
+        $ids = $request->json('ids');
+        if (empty($ids)) {
+            return response()->json(['message' => 'No IDs provided'], 400);
+        }
+        Buku::whereIn('id', $ids)->delete();
+        return response()->json(['message' => 'Selected bukus deleted successfully']);
+    }
 
-        $bukus = Buku::with('penerbit')
-            ->where(function ($query) use ($q) {
-                $query->where('judul', 'like', "%{$q}%")
-                    ->orWhere('pengarang', 'like', "%{$q}%");
-            })
-            ->limit(100)
-            ->get()
-            ->map(function ($b) {
-                return [
-                    'id' => $b->id,
-                    'judul' => $b->judul,
-                    'pengarang' => $b->pengarang,
-                    'tahun_terbit' => $b->tahun_terbit,
-                    'penerbit' => $b->penerbit ? $b->penerbit->nama : '-',
-                    'actions' => view('bukus.partials.buku_actions', compact('b'))->render()
-
-                ];
-            });
-
+    public function searchByPenerbit($id_penerbit)
+    {
+        $bukus = Buku::with(['penerbit', 'kategori', 'subKategori'])->where('id_penerbit', $id_penerbit)->get();
         return response()->json($bukus);
     }
 
-    public function searchByKategori($id)
+    public function searchBySubKategori($id_sub_kategori)
     {
-        // ambil semua sub kategori dalam kategori tertentu
-        $subKategoris = \App\Models\SubKategori::where('id_kategori', $id)->get();
-
-        return view('sub_kategoris.index', compact('subKategoris'));
-    }
-
-    public function searchBySubKategori($id)
-    {
-        // ambil semua buku dalam sub kategori tertentu
-        $bukus = \App\Models\Buku::with('penerbit', 'subKategori')
-            ->where('id_sub_kategori', $id)
-            ->paginate(10);
-
-        return view('bukus.index', compact('bukus'));
-
-
-
-        function searchByPenerbit($id)
-        {
-            // ambil semua buku berdasarkan penerbit
-            $bukus = \App\Models\Buku::where('id_penerbit', $id)->paginate(10);
-
-            return view('bukus.index', compact('bukus'));
-        }
-
-
+        $bukus = Buku::with(['penerbit', 'kategori', 'subKategori'])->where('id_sub_kategori', $id_sub_kategori)->get();
+        return response()->json($bukus);
     }
 }

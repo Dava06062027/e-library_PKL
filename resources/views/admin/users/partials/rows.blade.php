@@ -30,21 +30,28 @@
         </td>
         <td class="text-secondary">
             {{ $user->email }}
-            <i class="bi bi-clipboard ms-1 small copy-email" role="button" title="Copy" data-email="{{ $user->email }}"></i>
         </td>
         <td>
             <span class="badge {{ $roleBadgeClass }} border border-m365">{{ $user->role }}</span>
         </td>
         <td>
-            <span class="status-{{ $isOnline ? 'online' : 'offline' }}"></span>
+            <span class="{{ $isOnline ? 'status-online' : 'status-offline' }}"></span>
             <span class="small">{{ $isOnline ? 'Online' : 'Offline' }}</span>
+        </td>
+        <td class="text-center">
+            <button class="btn btn-sm btn-outline-info btn-view-detail" data-id="{{ $user->id }}" title="View Detail">
+                <i class="bi bi-eye"></i>
+            </button>
         </td>
     </tr>
 @endforeach
 
 @if($users->isEmpty())
     <tr>
-        <td colspan="5" class="text-center py-3">No users found.</td>
+        <td colspan="6" class="text-center py-5 text-secondary">
+            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+            <p class="mt-2 mb-0">No users found.</p>
+        </td>
     </tr>
 @endif
 
@@ -69,6 +76,6 @@
         color: #0078d4;
     }
     .border-m365 {
-        border-color: #edebe9 !important;
+        border-color: #d1d1d1 !important;
     }
 </style>

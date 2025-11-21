@@ -1,8 +1,10 @@
+<!-- resources/views/buku-items/index.blade.php -->
+
 @extends('layouts.app')
 
 @section('content')
     <style>
-        /* Sama seperti contoh: Minimal custom styles untuk warna M365-ish */
+
         .bg-m365-gray { background-color: #f5f5f5 !important; }
         .bg-m365-white { background-color: #ffffff !important; }
         .border-m365 { border-color: #d1d1d1 !important; }
@@ -101,27 +103,26 @@
             display: inline-block;
             font-family: sans-serif; /* Force standard font to avoid icon overrides */
         }
-
     </style>
 
     <div class="bg-m365-white min-vh-100 p-4">
         <!-- Toolbar -->
         <div class="d-flex align-items-center gap-2 mb-3">
             @if(auth()->user()->role === 'Officer' || auth()->user()->role === 'Admin')
-                <button id="btn-new-buku" class="btn btn-m365 d-flex align-items-center gap-2">
+                <button id="btn-new-item" class="btn btn-m365 d-flex align-items-center gap-2">
                     <i class="bi bi-plus-lg"></i>
-                    <span>New Buku</span>
+                    <span>New Item</span>
                 </button>
                 <div class="vr"></div>
-                <button id="btn-detail-buku" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
+                <button id="btn-detail-item" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
                     <i class="bi bi-book"></i>
                     <span>Detail</span>
                 </button>
-                <button id="btn-edit-buku" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
+                <button id="btn-edit-item" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
                     <i class="bi bi-pencil"></i>
                     <span>Edit</span>
                 </button>
-                <button id="btn-delete-buku" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
+                <button id="btn-delete-item" class="btn btn-m365 d-flex align-items-center gap-2" disabled>
                     <i class="bi bi-trash"></i>
                     <span>Delete</span>
                 </button>
@@ -137,7 +138,7 @@
         <div class="d-flex align-items-center gap-3 mb-3">
             <div class="position-relative" style="width: 300px;">
                 <i class="bi bi-search position-absolute start-0 top-50 translate-middle-y ms-2 text-secondary"></i>
-                <input id="search-buku" type="text" class="form-control search-input" placeholder="Search by Judul or Pengarang">
+                <input id="search-item" type="text" class="form-control search-input" placeholder="Search by Barcode">
             </div>
             <div class="position-relative">
                 <button id="btn-filter" class="btn btn-m365 d-flex align-items-center gap-2">
@@ -146,20 +147,38 @@
                 </button>
                 <div id="filter-dropdown" class="filter-dropdown">
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold">Filter by Kategori</label>
-                        <select id="filter-kategori" class="form-select form-select-sm">
-                            <option value="">All Kategori</option>
-                            @foreach($kategoris as $kategori)
-                                <option value="{{ $kategori->id }}">{{ $kategori->nama ?? $kategori->name }}</option>
+                        <label class="form-label small fw-semibold">Filter by Kondisi</label>
+                        <select id="filter-kondisi" class="form-select form-select-sm">
+                            <option value="">All Kondisi</option>
+                            <option value="Baik">Baik</option>
+                            <option value="Rusak">Rusak</option>
+                            <option value="Hilang">Hilang</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Filter by Status</label>
+                        <select id="filter-status" class="form-select form-select-sm">
+                            <option value="">All Status</option>
+                            <option value="Tersedia">Tersedia</option>
+                            <option value="Dipinjam">Dipinjam</option>
+                            <option value="Reparasi">Reparasi</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Filter by Buku</label>
+                        <select id="filter-buku" class="form-select form-select-sm">
+                            <option value="">All Buku</option>
+                            @foreach($bukus as $buku)
+                                <option value="{{ $buku->id }}">{{ $buku->judul }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold">Filter by Sub Kategori</label>
-                        <select id="filter-subkategori" class="form-select form-select-sm">
-                            <option value="">All Sub Kategori</option>
-                            @foreach($subkategoris as $subkategori)
-                                <option value="{{ $subkategori->id }}">{{ $subkategori->nama ?? $subkategori->name }}</option>
+                        <label class="form-label small fw-semibold">Filter by Rak</label>
+                        <select id="filter-rak" class="form-select form-select-sm">
+                            <option value="">All Rak</option>
+                            @foreach($raks as $rak)
+                                <option value="{{ $rak->id }}">{{ $rak->nama }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -173,7 +192,7 @@
 
         <!-- Count -->
         <div class="text-secondary small mb-3">
-            <span id="buku-count">{{ $bukus->total() }} bukus found</span>
+            <span id="item-count">{{ $items->total() }} items found</span>
         </div>
 
         <!-- Table -->
@@ -185,56 +204,56 @@
                         <th style="width: 50px;" class="py-3">
                             <input type="checkbox" id="select-all" class="form-check-input">
                         </th>
-                        <th class="py-3 fw-semibold">Judul</th>
-                        <th class="py-3 fw-semibold">Pengarang</th>
-                        <th class="py-3 fw-semibold">Tahun Terbit</th>
-                        <th class="py-3 fw-semibold">Kategori</th>
+                        <th class="py-3 fw-semibold">Barcode</th>
+                        <th class="py-3 fw-semibold">Kondisi</th>
+                        <th class="py-3 fw-semibold">Status</th>
+                        <th class="py-3 fw-semibold">Sumber</th>
+                        <th class="py-3 fw-semibold">Buku</th>
+                        <th class="py-3 fw-semibold">Rak</th>
                         <th class="py-3 fw-semibold text-center">Actions</th>
                     </tr>
                     </thead>
-                    <tbody id="buku-table-body">
-                    @include('bukus.partials.rows')
+                    <tbody id="item-table-body">
+                    @include('buku-items.partials.rows')
                     </tbody>
                 </table>
             </div>
-            @include('bukus.partials.pagination')
+            @include('buku-items.partials.pagination')
         </div>
     </div>
 
-    @include('bukus.partials.new-buku-modal')
-    @include('bukus.partials.edit-buku-modal')
-    @include('bukus.partials.buku-detail-modal')
-    @include('bukus.partials.eksemplar-list-modal')
-
-    <!-- resources/views/bukus/index.blade.php - Update JS with proper headers -->
-
-    <!-- ... (Keep all HTML the same, only update the script) -->
+    @include('buku-items.partials.new-item-modal')
+    @include('buku-items.partials.edit-item-modal')
+    @include('buku-items.partials.item-detail-modal')
 
     @push('scripts')
         <script>
             (function() {
                 const csrf = '{{ csrf_token() }}';
                 const $selectAll = document.getElementById('select-all');
-                const $btnNew = document.getElementById('btn-new-buku');
-                const $btnDetail = document.getElementById('btn-detail-buku');
-                const $btnEdit = document.getElementById('btn-edit-buku');
-                const $btnDelete = document.getElementById('btn-delete-buku');
+                const $btnNew = document.getElementById('btn-new-item');
+                const $btnDetail = document.getElementById('btn-detail-item');
+                const $btnEdit = document.getElementById('btn-edit-item');
+                const $btnDelete = document.getElementById('btn-delete-item');
                 const $btnRefresh = document.getElementById('btn-refresh');
-                const $searchInput = document.getElementById('search-buku');
+                const $searchInput = document.getElementById('search-item');
                 const $btnFilter = document.getElementById('btn-filter');
                 const $filterDropdown = document.getElementById('filter-dropdown');
-                const $filterKategori = document.getElementById('filter-kategori');
-                const $filterSubkategori = document.getElementById('filter-subkategori');
+                const $filterKondisi = document.getElementById('filter-kondisi');
+                const $filterStatus = document.getElementById('filter-status');
+                const $filterBuku = document.getElementById('filter-buku');
+                const $filterRak = document.getElementById('filter-rak');
                 const $btnApplyFilter = document.getElementById('btn-apply-filter');
                 const $btnClearFilter = document.getElementById('btn-clear-filter');
-                const $bukuCount = document.getElementById('buku-count');
-                const $tableBody = document.getElementById('buku-table-body');
-                const $pagination = document.querySelector('.d-flex.justify-content-between.align-items-center'); // Pagination container
+                const $itemCount = document.getElementById('item-count');
+                const $tableBody = document.getElementById('item-table-body');
 
                 let currentPage = 1;
                 let searchQuery = '';
-                let filterKategoriVal = '';
-                let filterSubkategoriVal = '';
+                let filterKondisiVal = '';
+                let filterStatusVal = '';
+                let filterBukuVal = '';
+                let filterRakVal = '';
 
                 // Toggle buttons based on selection
                 function toggleButtons() {
@@ -245,38 +264,37 @@
                 }
 
                 function getSelectedIds() {
-                    return Array.from(document.querySelectorAll('.select-buku:checked')).map(el => el.value);
+                    return Array.from(document.querySelectorAll('.select-item:checked')).map(el => el.value);
                 }
 
                 function attachRowHandlers() {
-                    document.querySelectorAll('.select-buku').forEach(el => {
+                    document.querySelectorAll('.select-item').forEach(el => {
                         el.addEventListener('change', toggleButtons);
                     });
                     $selectAll.addEventListener('change', function() {
-                        document.querySelectorAll('.select-buku').forEach(el => el.checked = this.checked);
+                        document.querySelectorAll('.select-item').forEach(el => el.checked = this.checked);
                         toggleButtons();
                     });
                 }
 
                 function attachDetailHandlers() {
                     document.querySelectorAll('.btn-view-detail').forEach(btn => {
-                        btn.addEventListener('click', showBukuDetail);
-                    });
-                    document.querySelectorAll('.btn-view-eksemplar').forEach(btn => {
-                        btn.addEventListener('click', showEksemplarList);
+                        btn.addEventListener('click', showItemDetail);
                     });
                 }
 
-                // Fetch bukus with AJAX for partial HTML
-                async function fetchBukus(page = 1) {
+                // Fetch items with AJAX for partial HTML
+                async function fetchItems(page = 1) {
                     try {
                         const params = new URLSearchParams({
                             page,
                             search: searchQuery,
-                            kategori: filterKategoriVal,
-                            subkategori: filterSubkategoriVal
+                            kondisi: filterKondisiVal,
+                            status: filterStatusVal,
+                            buku: filterBukuVal,
+                            rak: filterRakVal
                         });
-                        const res = await fetch(`/bukus?${params.toString()}`, {
+                        const res = await fetch(`/buku-items?${params.toString()}`, {
                             headers: {
                                 'X-Requested-With': 'XMLHttpRequest',
                                 'Accept': 'text/html'
@@ -289,87 +307,50 @@
                         attachDetailHandlers();
                         toggleButtons();
                         // Update count approximately
-                        $bukuCount.textContent = document.querySelectorAll('#buku-table-body tr:not(.no-data)').length + ' bukus found';
+                        $itemCount.textContent = document.querySelectorAll('#item-table-body tr:not(.no-data)').length + ' items found';
                     } catch (err) {
-                        console.error('Failed to fetch bukus', err);
-                        alert('Failed to fetch bukus');
+                        console.error('Failed to fetch items', err);
+                        alert('Failed to fetch items');
                     }
                 }
 
-                // Show buku detail with JSON
-                async function showBukuDetail(e) {
+                // Show item detail with JSON
+                async function showItemDetail(e) {
                     const id = e.target.closest('button').dataset.id;
                     try {
-                        const res = await fetch(`/bukus/${id}`, {
+                        const res = await fetch(`/buku-items/${id}`, {
                             headers: {
                                 'Accept': 'application/json',
                                 'X-Requested-With': 'XMLHttpRequest'
                             }
                         });
                         if (!res.ok) throw new Error('Failed to fetch');
-                        const buku = await res.json();
-                        document.getElementById('detail-judul').textContent = buku.judul || '-';
-                        document.getElementById('detail-pengarang').textContent = buku.pengarang || '-';
-                        document.getElementById('detail-tahun-terbit').textContent = buku.tahun_terbit || '-';
-                        document.getElementById('detail-isbn').textContent = buku.isbn || '-';
-                        document.getElementById('detail-barcode').textContent = buku.barcode || '-';
-                        document.getElementById('detail-penerbit').textContent = buku.penerbit?.nama || '-';
-                        document.getElementById('detail-kategori').textContent = buku.kategori?.nama || '-';
-                        document.getElementById('detail-sub-kategori').textContent = buku.subKategori?.nama || '-';
-                        new bootstrap.Modal(document.getElementById('modalBukuDetail')).show();
+                        const item = await res.json();
+                        document.getElementById('detail-barcode').textContent = item.barcode || '-';
+                        document.getElementById('detail-kondisi').textContent = item.kondisi || '-';
+                        document.getElementById('detail-status').textContent = item.status || '-';
+                        document.getElementById('detail-sumber').textContent = item.sumber || '-';
+                        document.getElementById('detail-buku').textContent = item.buku?.judul || '-';
+                        document.getElementById('detail-rak').textContent = item.rak?.nama || '-';
+                        new bootstrap.Modal(document.getElementById('modalItemDetail')).show();
                     } catch (err) {
-                        alert('Failed to fetch buku detail: ' + err.message);
+                        alert('Failed to fetch item detail: ' + err.message);
                     }
                 }
 
-                // Show eksemplar list with JSON
-                async function showEksemplarList(e) {
-                    const id = e.target.closest('button').dataset.id;
-                    try {
-                        const res = await fetch(`/bukus/${id}/items`, {
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        });
-                        if (!res.ok) throw new Error('Failed to fetch');
-                        const items = await res.json();
-                        const $eksemplarBody = document.getElementById('eksemplar-table-body');
-                        $eksemplarBody.innerHTML = '';
-                        if (items.length === 0) {
-                            $eksemplarBody.innerHTML = '<tr><td colspan="5" class="text-center">No eksemplar found.</td></tr>';
-                        } else {
-                            items.forEach(item => {
-                                const tr = document.createElement('tr');
-                                tr.innerHTML = `
-                            <td>${item.barcode}</td>
-                            <td><span class="badge bg-${item.kondisi === 'Baik' ? 'success' : item.kondisi === 'Rusak' ? 'warning' : 'danger'}">${item.kondisi}</span></td>
-                            <td><span class="badge bg-${item.status === 'Tersedia' ? 'primary' : item.status === 'Dipinjam' ? 'info' : 'secondary'}">${item.status}</span></td>
-                            <td>${item.sumber}</td>
-                            <td>${item.rak ? item.rak.nama : '-'}</td>
-                        `;
-                                $eksemplarBody.appendChild(tr);
-                            });
-                        }
-                        new bootstrap.Modal(document.getElementById('modalEksemplarList')).show();
-                    } catch (err) {
-                        alert('Failed to fetch eksemplar: ' + err.message);
-                    }
-                }
-
-                // New Buku
+                // New Item
                 if ($btnNew) {
                     $btnNew.addEventListener('click', () => {
-                        new bootstrap.Modal(document.getElementById('modalNewBuku')).show();
+                        new bootstrap.Modal(document.getElementById('modalNewItem')).show();
                     });
                 }
 
                 // Form submit for new with FormData and proper headers
-                document.getElementById('form-new-buku').addEventListener('submit', async function(e) {
+                document.getElementById('form-new-item').addEventListener('submit', async function(e) {
                     e.preventDefault();
                     const formData = new FormData(this);
                     try {
-                        const res = await fetch('/bukus', {
+                        const res = await fetch('/buku-items', {
                             method: 'POST',
                             headers: {
                                 'X-CSRF-TOKEN': csrf,
@@ -383,37 +364,40 @@
                             throw new Error(errorData.message || 'Failed to create');
                         }
                         const data = await res.json();
-                        fetchBukus(currentPage);
-                        bootstrap.Modal.getInstance(document.getElementById('modalNewBuku')).hide();
+                        fetchItems(currentPage);
+                        bootstrap.Modal.getInstance(document.getElementById('modalNewItem')).hide();
                         alert('Created successfully');
                     } catch (err) {
                         alert('Failed to create: ' + err.message);
                     }
                 });
 
-                // Edit Buku
+                // Edit Item
                 if ($btnEdit) {
                     $btnEdit.addEventListener('click', async function() {
                         const id = getSelectedIds()[0];
                         try {
-                            const res = await fetch(`/bukus/${id}`, {
+                            const res = await fetch(`/buku-items/${id}`, {
                                 headers: {
                                     'Accept': 'application/json',
                                     'X-Requested-With': 'XMLHttpRequest'
                                 }
                             });
                             if (!res.ok) throw new Error('Failed to fetch');
-                            const buku = await res.json();
-                            document.getElementById('edit-buku-id').value = buku.id;
-                            document.getElementById('edit-judul').value = buku.judul;
-                            document.getElementById('edit-pengarang').value = buku.pengarang;
-                            document.getElementById('edit-tahun-terbit').value = buku.tahun_terbit;
-                            document.getElementById('edit-isbn').value = buku.isbn;
-                            document.getElementById('edit-barcode').value = buku.barcode;
-                            document.getElementById('edit-id-penerbit').value = buku.id_penerbit;
-                            document.getElementById('edit-id-kategori').value = buku.id_kategori;
-                            document.getElementById('edit-id-sub-kategori').value = buku.id_sub_kategori;
-                            new bootstrap.Modal(document.getElementById('modalEditBuku')).show();
+                            const item = await res.json();
+                            document.getElementById('edit-item-id').value = item.id;
+                            const editBuku = document.getElementById('edit-id-buku');
+                            if (editBuku) editBuku.value = item.id_buku;
+                            const editKondisi = document.getElementById('edit-kondisi');
+                            if (editKondisi) editKondisi.value = item.kondisi;
+                            const editStatus = document.getElementById('edit-status');
+                            if (editStatus) editStatus.value = item.status;
+                            const editSumber = document.getElementById('edit-sumber');
+                            if (editSumber) editSumber.value = item.sumber;
+                            const editRak = document.getElementById('edit-id-rak');
+                            if (editRak) editRak.value = item.id_rak || '';
+                            // Removed editBarcode line
+                            new bootstrap.Modal(document.getElementById('modalEditItem')).show();
                         } catch (err) {
                             alert('Failed to load edit data: ' + err.message);
                         }
@@ -421,13 +405,13 @@
                 }
 
                 // Form submit for edit with FormData and proper headers
-                document.getElementById('form-edit-buku').addEventListener('submit', async function(e) {
+                document.getElementById('form-edit-item').addEventListener('submit', async function(e) {
                     e.preventDefault();
-                    const id = document.getElementById('edit-buku-id').value;
+                    const id = document.getElementById('edit-item-id').value;
                     const formData = new FormData(this);
                     formData.append('_method', 'PUT');
                     try {
-                        const res = await fetch(`/bukus/${id}`, {
+                        const res = await fetch(`/buku-items/${id}`, {
                             method: 'POST', // Since Laravel uses POST for PUT with _method
                             headers: {
                                 'X-CSRF-TOKEN': csrf,
@@ -441,8 +425,8 @@
                             throw new Error(errorData.message || 'Failed to update');
                         }
                         const data = await res.json();
-                        fetchBukus(currentPage);
-                        bootstrap.Modal.getInstance(document.getElementById('modalEditBuku')).hide();
+                        fetchItems(currentPage);
+                        bootstrap.Modal.getInstance(document.getElementById('modalEditItem')).hide();
                         alert('Updated successfully');
                     } catch (err) {
                         alert('Failed to update: ' + err.message);
@@ -453,10 +437,10 @@
                 if ($btnDelete) {
                     $btnDelete.addEventListener('click', async function() {
                         const ids = getSelectedIds();
-                        if (!ids.length) return alert('Select bukus first');
-                        if (!confirm(`Delete ${ids.length} bukus?`)) return;
+                        if (!ids.length) return alert('Select items first');
+                        if (!confirm(`Delete ${ids.length} items?`)) return;
                         try {
-                            const res = await fetch('/bukus/destroy-selected', {
+                            const res = await fetch('/buku-items/destroy-selected', {
                                 method: 'DELETE',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -471,7 +455,7 @@
                                 throw new Error(errorData.message || 'Failed to delete');
                             }
                             const data = await res.json();
-                            fetchBukus(currentPage);
+                            fetchItems(currentPage);
                             alert('Deleted successfully');
                         } catch (err) {
                             alert('Failed to delete: ' + err.message);
@@ -480,12 +464,12 @@
                 }
 
                 // Refresh
-                $btnRefresh.addEventListener('click', () => fetchBukus(currentPage));
+                $btnRefresh.addEventListener('click', () => fetchItems(currentPage));
 
                 // Search
                 $searchInput.addEventListener('input', function() {
                     searchQuery = this.value;
-                    fetchBukus(1);
+                    fetchItems(1);
                 });
 
                 // Filter toggle
@@ -493,19 +477,25 @@
 
                 // Apply filter
                 $btnApplyFilter.addEventListener('click', () => {
-                    filterKategoriVal = $filterKategori.value;
-                    filterSubkategoriVal = $filterSubkategori.value;
-                    fetchBukus(1);
+                    filterKondisiVal = $filterKondisi.value;
+                    filterStatusVal = $filterStatus.value;
+                    filterBukuVal = $filterBuku.value;
+                    filterRakVal = $filterRak.value;
+                    fetchItems(1);
                     $filterDropdown.classList.remove('show');
                 });
 
                 // Clear filter
                 $btnClearFilter.addEventListener('click', () => {
-                    $filterKategori.value = '';
-                    $filterSubkategori.value = '';
-                    filterKategoriVal = '';
-                    filterSubkategoriVal = '';
-                    fetchBukus(1);
+                    $filterKondisi.value = '';
+                    $filterStatus.value = '';
+                    $filterBuku.value = '';
+                    $filterRak.value = '';
+                    filterKondisiVal = '';
+                    filterStatusVal = '';
+                    filterBukuVal = '';
+                    filterRakVal = '';
+                    fetchItems(1);
                     $filterDropdown.classList.remove('show');
                 });
 
@@ -515,7 +505,7 @@
                         e.preventDefault();
                         const url = new URL(e.target.href);
                         currentPage = url.searchParams.get('page');
-                        fetchBukus(currentPage);
+                        fetchItems(currentPage);
                     }
                 });
 

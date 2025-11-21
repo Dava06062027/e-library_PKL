@@ -1,45 +1,100 @@
 <?php
 
+// app/Http/Controllers/KategoriController.php
+
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Kategori;
+use Illuminate\Http\Request;
 
 class KategoriController extends Controller
 {
-    public function index()
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
     {
-        $kategoris = Kategori::all();
+        $kategoris = Kategori::query()
+            ->when($request->search, function($query) use ($request) {
+                $query->where('nama', 'like', '%' . $request->search . '%');
+            })
+            ->Paginate(10)
+            ->withQueryString();
+
+        if ($request->ajax()) {
+            return view('kategoris.partials.rows', compact('kategoris'));
+        }
+
         return view('kategoris.index', compact('kategoris'));
     }
 
-    public function create()
-    {
-        return view('kategoris.create');
-    }
-
+    /**
+     * Store a newly created resource in storage.
+     */
     public function store(Request $request)
     {
-        $request->validate(['nama' => 'required']);
-        Kategori::create($request->all());
-        return redirect()->route('kategoris.index')->with('success', 'Kategori berhasil ditambahkan');
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255|unique:kategoris,nama',
+        ]);
+
+        $kategori = Kategori::create($validated);
+
+        return response()->json([
+            'message' => 'Kategori created successfully',
+            'kategori' => $kategori
+        ], 201);
     }
 
-    public function edit(Kategori $kategori)
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
     {
-        return view('kategoris.edit', compact('kategori'));
+        $kategori = Kategori::findOrFail($id);
+        return response()->json($kategori);
     }
 
-    public function update(Request $request, Kategori $kategori)
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
     {
-        $request->validate(['nama' => 'required']);
-        $kategori->update($request->all());
-        return redirect()->route('kategoris.index')->with('success', 'Kategori berhasil diperbarui');
+        $kategori = Kategori::findOrFail($id);
+
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255|unique:kategoris,nama,' . $id,
+        ]);
+
+        $kategori->update($validated);
+
+        return response()->json([
+            'message' => 'Kategori updated successfully'
+        ]);
     }
 
-    public function destroy(Kategori $kategori)
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
     {
+        $kategori = Kategori::findOrFail($id);
         $kategori->delete();
-        return redirect()->route('kategoris.index')->with('success', 'Kategori berhasil dihapus');
+
+        return response()->json([
+            'message' => 'Kategori deleted successfully'
+        ]);
+    }
+
+    /**
+     * Delete selected kategoris
+     */
+    public function destroySelected(Request $request)
+    {
+        $ids = $request->json('ids');
+        Kategori::whereIn('id', $ids)->delete();
+
+        return response()->json([
+            'message' => 'Selected kategoris deleted successfully'
+        ]);
     }
 }
